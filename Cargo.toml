@@ -1,0 +1,14 @@
+[package]
+name = "metricus"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Low latency metrics."
+readme = "./README.md"
+documentation = "https://docs.rs/metricus"
+repository = "https://github.com/HaveFunTrading/metricus"
+keywords = ["metrics", "low-latency"]
+categories = ["development-tools::debugging"]
+rust-version = "1.83.0"
+
+
