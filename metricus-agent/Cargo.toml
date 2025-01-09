@@ -1,5 +1,5 @@
 [package]
-name = "metricuss_agent"
+name = "metricus_agent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
