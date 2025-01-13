@@ -1,7 +1,15 @@
 #![doc = include_str!("../README.md")]
 
-pub trait MetricsBackend : Sized {
+pub type Id = u64;
+pub type Tag<'a> = (&'a str, &'a str);
+pub type Tags<'a> = &'a [Tag<'a>];
+pub type PreAllocatedMetric<'a> = (&'a str, Id, Tags<'a>);
 
+pub const fn empty_tags() -> Tags<'static> {
+    &[]
+}
+
+pub trait MetricsBackend: Sized {
     type Config: Default;
 
     fn new() -> Self {
@@ -10,8 +18,15 @@ pub trait MetricsBackend : Sized {
 
     fn new_with_config(config: Self::Config) -> Self;
 
+    fn new_counter(&mut self, name: &str, tags: Tags) -> Id;
 
-    fn create_counter(&mut self) -> u64;
+    fn delete_counter(&mut self, id: Id);
+
+    fn increment_counter_by(&mut self, id: Id, delta: usize);
+
+    fn increment_counter(&mut self, id: Id) {
+        self.increment_counter_by(id, 1)
+    }
 }
 
 /// A trivial no-op backend for the "uninitialized" state.
@@ -24,9 +39,16 @@ impl MetricsBackend for NoOpBackend {
         Self
     }
 
-    fn create_counter(&mut self) -> u64 {
-        println!("[NoOpBackend] Create counter");
-        0
+    fn new_counter(&mut self, _name: &str, _tags: Tags) -> Id {
+        Id::default()
+    }
+
+    fn delete_counter(&mut self, _id: Id) {
+        // no-op
+    }
+
+    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+        // no-op
     }
 }
 
@@ -39,17 +61,29 @@ macro_rules! register_backend {
             Init($BackendType),
         }
 
-        impl Default for Metrics {
-            fn default() -> Self {
-                Metrics::Uninit($crate::NoOpBackend)
-            }
-        }
-
         impl Metrics {
-            fn create_counter(&mut self) -> u64 {
+            fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
                 match self {
-                    Metrics::Uninit(backend) => backend.create_counter(),
-                    Metrics::Init(backend)   => backend.create_counter(),
+                    Metrics::Uninit(backend) => backend.new_counter(name, tags),
+                    Metrics::Init(backend) => backend.new_counter(name, tags),
+                }
+            }
+
+            fn delete_counter(&mut self, id: Id) {
+                match self {
+                    Metrics::Uninit(backend) => backend.delete_counter(id),
+                    Metrics::Init(backend) => backend.delete_counter(id),
+                }
+            }
+
+            fn increment_counter(&mut self, id: Id) {
+                self.increment_counter_by(id, 1)
+            }
+
+            fn increment_counter_by(&mut self, id: Id, delta: usize) {
+                match self {
+                    Metrics::Uninit(backend) => backend.increment_counter_by(id, delta),
+                    Metrics::Init(backend) => backend.increment_counter_by(id, delta),
                 }
             }
         }
@@ -57,13 +91,13 @@ macro_rules! register_backend {
         /// The single global instance of metrics backend.
         static mut METRICS: Metrics = Metrics::Uninit($crate::NoOpBackend);
 
-        /// Call this to initialize the global metrics backend. with default config.
+        /// Call this to initialize the global metrics backend with default config.
         /// Panics if it's already initialized.
         pub fn init_backend() {
             init_backend_with_config(<$BackendType as MetricsBackend>::Config::default())
         }
 
-        /// Call this to initialize the global metrics backend. with user supplied config.
+        /// Call this to initialize the global metrics backend with user supplied config.
         /// Panics if it's already initialized.
         pub fn init_backend_with_config(config: <$BackendType as MetricsBackend>::Config) {
             unsafe {
@@ -78,12 +112,28 @@ macro_rules! register_backend {
             }
         }
 
-        /// Create a counter using the global metrics backend.
+        /// Create a new counter using the global metrics backend.
         /// In uninitialized state, this is effectively no-op.
-        pub fn create_counter() -> u64 {
-            unsafe {
-                METRICS.create_counter()
-            }
+        pub fn new_counter(name: &str, tags: Tags) -> Id {
+            unsafe { METRICS.new_counter(name, tags) }
         }
-    }
+
+        /// Delete a counter using the global metrics backend.
+        /// In uninitialized state, this is effectively no-op.
+        pub fn delete_counter(id: Id) {
+            unsafe { METRICS.delete_counter(id) }
+        }
+
+        /// Increment a counter by specified delta using the global metrics backend.
+        /// In uninitialized state, this is effectively no-op.
+        pub fn increment_counter_by(id: Id, delta: usize) {
+            unsafe { METRICS.increment_counter_by(id, delta) }
+        }
+
+        /// Increment a counter by 1 using the global metrics backend.
+        /// In uninitialized state, this is effectively no-op.
+        pub fn increment_counter(id: Id) {
+            increment_counter_by(id, 1)
+        }
+    };
 }

@@ -1,4 +1,4 @@
-use metricus::{register_backend, MetricsBackend};
+use metricus::{empty_tags, register_backend, Id, MetricsBackend, Tags};
 
 register_backend!(CustomBackend);
 
@@ -14,16 +14,24 @@ impl MetricsBackend for CustomBackend {
         Self
     }
 
-    fn create_counter(&mut self) -> u64 {
-        println!("[CustomBackend] Create counter");
-        1
+    fn new_counter(&mut self, _name: &str, _tags: Tags) -> Id {
+        println!("[CustomBackend] New counter");
+        Id::default()
+    }
+
+    fn delete_counter(&mut self, _id: Id) {
+        println!("[CustomBackend] Delete counter");
+    }
+
+    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+        println!("[CustomBackend] Increment counter by");
     }
 }
 
 fn main() {
-    init_backend_with_config(CustomBackendConfig::default());
+    init_backend_with_config(CustomBackendConfig);
 
-    create_counter();
-    create_counter();
-    create_counter();
+    new_counter("foo", empty_tags());
+    new_counter("foo", empty_tags());
+    new_counter("foo", empty_tags());
 }
