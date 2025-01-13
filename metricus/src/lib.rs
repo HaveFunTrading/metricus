@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+use std::ptr::{addr_of, addr_of_mut};
+
 pub type Id = u64;
 pub type Tag<'a> = (&'a str, &'a str);
 pub type Tags<'a> = &'a [Tag<'a>];
@@ -19,13 +21,43 @@ pub trait MetricsBackend: Sized {
 
     fn new_with_config(config: Self::Config) -> Self;
 
+    fn into_handle(self) -> BackendHandle {
+        let ptr = Box::into_raw(Box::new(self)) as *mut _;
+        let vtable = BackendVTable {
+            new_counter: Self::new_counter_raw,
+            delete_counter: Self::delete_counter_raw,
+            increment_counter: Self::increment_counter_raw,
+            increment_counter_by: Self::increment_counter_by_raw,
+        };
+        BackendHandle { ptr, vtable }
+    }
+
     fn name(&self) -> &'static str;
+
+    unsafe fn new_counter_raw(ptr: *mut u8, name: &str, tags: Tags) -> Id {
+        let backend = &mut *(ptr as *mut Self);
+        backend.new_counter(name, tags)
+    }
 
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id;
 
+    unsafe fn delete_counter_raw(ptr: *mut u8, id: Id) {
+        let backend = &mut *(ptr as *mut Self);
+        backend.delete_counter(id)
+    }
+
     fn delete_counter(&mut self, id: Id);
 
+    unsafe fn increment_counter_by_raw(ptr: *mut u8, id: Id, delta: usize) {
+        let backend = &mut *(ptr as *mut Self);
+        backend.increment_counter_by(id, delta)
+    }
+
     fn increment_counter_by(&mut self, id: Id, delta: usize);
+
+    unsafe fn increment_counter_raw(ptr: *mut u8, id: Id) {
+        Self::increment_counter_by_raw(ptr, id, 1)
+    }
 
     fn increment_counter(&mut self, id: Id) {
         self.increment_counter_by(id, 1)
@@ -34,6 +66,19 @@ pub trait MetricsBackend: Sized {
 
 /// A trivial no-op backend for the "uninitialized" state.
 pub struct NoOpBackend;
+
+const NO_OP_BACKEND: NoOpBackend = NoOpBackend;
+const NO_OP_BACKEND_VTABLE: BackendVTable = BackendVTable {
+    new_counter: NoOpBackend::new_counter_raw,
+    delete_counter: NoOpBackend::delete_counter_raw,
+    increment_counter: NoOpBackend::increment_counter_raw,
+    increment_counter_by: NoOpBackend::increment_counter_by_raw,
+};
+
+const NO_OP_BACKEND_HANDLE: BackendHandle = BackendHandle {
+    ptr: &NO_OP_BACKEND as *const NoOpBackend as *mut u8,
+    vtable: NO_OP_BACKEND_VTABLE,
+};
 
 impl MetricsBackend for NoOpBackend {
     type Config = ();
@@ -60,7 +105,10 @@ impl MetricsBackend for NoOpBackend {
 }
 
 pub struct BackendVTable {
-    pub new_counter: unsafe fn(*mut u8) -> Id,
+    pub new_counter: unsafe fn(*mut u8, &str, Tags) -> Id,
+    pub delete_counter: unsafe fn(*mut u8, Id),
+    pub increment_counter: unsafe fn(*mut u8, Id),
+    pub increment_counter_by: unsafe fn(*mut u8, Id, usize),
 }
 
 pub struct BackendHandle {
@@ -69,22 +117,25 @@ pub struct BackendHandle {
 }
 
 impl BackendHandle {
-    pub fn new_counter(&mut self) -> Id {
-        unsafe { (self.vtable.new_counter)(self.ptr) }
+    pub fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
+        unsafe { (self.vtable.new_counter)(self.ptr, name, tags) }
     }
 }
 
+// Metrics(BackendHandle)
+// no need for enum!
+
 pub enum Metrics2 {
-    Uninit,
+    Uninit(NoOpBackend),
     Init(BackendHandle),
 }
 
-static mut METRICS2: Metrics2 = Metrics2::Uninit;
+static mut METRICS2: Metrics2 = Metrics2::Uninit(NoOpBackend);
 
 pub fn init_backend2(handle: BackendHandle) {
     unsafe {
         match METRICS2 {
-            Metrics2::Uninit => {
+            Metrics2::Uninit(_) => {
                 METRICS2 = Metrics2::Init(handle);
             }
             Metrics2::Init(_) => {
@@ -95,11 +146,10 @@ pub fn init_backend2(handle: BackendHandle) {
 }
 
 impl Metrics2 {
-
-    pub fn new_counter(&mut self) -> Id {
+    pub fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         match self {
-            Metrics2::Uninit => Id::default(),
-            Metrics2::Init(handle) => handle.new_counter(),
+            Metrics2::Uninit(noop) => noop.new_counter(name, tags),
+            Metrics2::Init(handle) => handle.new_counter(name, tags),
         }
     }
 }
@@ -113,7 +163,6 @@ pub fn get_metrics2_mut() -> &'static mut Metrics2 {
 pub fn get_metrics2() -> &'static Metrics2 {
     unsafe { &METRICS2 }
 }
-
 
 #[macro_export]
 macro_rules! register_backend {

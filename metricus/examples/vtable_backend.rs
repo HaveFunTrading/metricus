@@ -1,43 +1,37 @@
-use metricus::{get_metrics2_mut, init_backend2, BackendHandle, BackendVTable, Id};
+use metricus::{empty_tags, get_metrics2_mut, init_backend2, BackendHandle, BackendVTable, Id, MetricsBackend, Tags};
 
 #[derive(Debug)]
 struct CustomBackend {
     counter: usize,
 }
 
-impl From<BackendHandle> for CustomBackend {
-    fn from(handle: BackendHandle) -> Self {
-        let b = unsafe { Box::from_raw(handle.ptr as *mut CustomBackend) };
-        *b
-    }
-}
+impl MetricsBackend for CustomBackend {
+    type Config = ();
 
-impl CustomBackend {
-    fn new() -> Self {
+    fn new_with_config(config: Self::Config) -> Self {
         Self { counter: 0 }
     }
 
-    fn into_handle(self) -> BackendHandle {
-        let ptr = Box::into_raw(Box::new(self)) as *mut _;
-        let vtable = BackendVTable {
-            new_counter: Self::new_counter_raw,
-        };
-        BackendHandle { ptr, vtable }
+    fn name(&self) -> &'static str {
+        "custom"
     }
 
-    unsafe fn new_counter_raw(ptr: *mut u8) -> Id {
-        let backend = &mut *(ptr as *mut Self);
-        backend.new_counter()
-    }
-
-    fn new_counter(&mut self) -> Id {
+    fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         Id::default()
+    }
+
+    fn delete_counter(&mut self, id: Id) {
+        // no-op
+    }
+
+    fn increment_counter_by(&mut self, id: Id, delta: usize) {
+        // no-op
     }
 }
 
 fn main() {
     init_backend2(CustomBackend::new().into_handle());
 
-    get_metrics2_mut().new_counter();
-    get_metrics2_mut().new_counter();
+    get_metrics2_mut().new_counter("foo", empty_tags());
+    get_metrics2_mut().new_counter("bar", empty_tags());
 }
