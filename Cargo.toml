@@ -2,7 +2,7 @@
 members = [
     "metricus",
     "metricus-agent",
-#    "metricus-derive"
+    "metricus-macros"
 ]
 resolver = "2"
 

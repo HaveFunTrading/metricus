@@ -1,0 +1,18 @@
+[package]
+name = "metricus_macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+readme = "./README.md"
+documentation.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"

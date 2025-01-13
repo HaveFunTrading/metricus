@@ -1,3 +1,3 @@
-# metricus
+# metricus-agent
 
 Contains agent.
