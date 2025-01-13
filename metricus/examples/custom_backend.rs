@@ -1,4 +1,5 @@
-use metricus::{empty_tags, get_metrics_mut, set_backend, Id, MetricsBackend, Tags};
+use metricus::counter::Counter;
+use metricus::{empty_tags, set_backend, Id, MetricsBackend, Tags};
 
 #[derive(Debug)]
 struct CustomBackend {
@@ -32,8 +33,8 @@ impl MetricsBackend for CustomBackend {
 }
 
 fn main() {
-    set_backend(CustomBackend::new().into_handle());
+    set_backend(CustomBackend::new());
 
-    get_metrics_mut().new_counter("foo", empty_tags());
-    get_metrics_mut().new_counter("bar", empty_tags());
+    Counter::new("foo", empty_tags());
+    Counter::new("bar", empty_tags());
 }
