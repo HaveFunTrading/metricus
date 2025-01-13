@@ -59,6 +59,62 @@ impl MetricsBackend for NoOpBackend {
     }
 }
 
+pub struct BackendVTable {
+    pub new_counter: unsafe fn(*mut u8) -> Id,
+}
+
+pub struct BackendHandle {
+    pub ptr: *mut u8,
+    pub vtable: BackendVTable,
+}
+
+impl BackendHandle {
+    pub fn new_counter(&mut self) -> Id {
+        unsafe { (self.vtable.new_counter)(self.ptr) }
+    }
+}
+
+pub enum Metrics2 {
+    Uninit,
+    Init(BackendHandle),
+}
+
+static mut METRICS2: Metrics2 = Metrics2::Uninit;
+
+pub fn init_backend2(handle: BackendHandle) {
+    unsafe {
+        match METRICS2 {
+            Metrics2::Uninit => {
+                METRICS2 = Metrics2::Init(handle);
+            }
+            Metrics2::Init(_) => {
+                panic!("Backend is already initialized!");
+            }
+        }
+    }
+}
+
+impl Metrics2 {
+
+    pub fn new_counter(&mut self) -> Id {
+        match self {
+            Metrics2::Uninit => Id::default(),
+            Metrics2::Init(handle) => handle.new_counter(),
+        }
+    }
+}
+
+#[allow(static_mut_refs)]
+pub fn get_metrics2_mut() -> &'static mut Metrics2 {
+    unsafe { &mut METRICS2 }
+}
+
+#[allow(static_mut_refs)]
+pub fn get_metrics2() -> &'static Metrics2 {
+    unsafe { &METRICS2 }
+}
+
+
 #[macro_export]
 macro_rules! register_backend {
     ($BackendType:ty) => {
