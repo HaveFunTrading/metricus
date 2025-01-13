@@ -1,8 +1,8 @@
 [workspace]
 members = [
     "metricus",
-    "metricus-agent",
-    "metricus-macros"
+    "metricus_agent",
+    "metricus_macros"
 ]
 resolver = "2"
 
