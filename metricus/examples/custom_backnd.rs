@@ -14,6 +14,10 @@ impl MetricsBackend for CustomBackend {
         Self
     }
 
+    fn name(&self) -> &'static str {
+        "custom"
+    }
+
     fn new_counter(&mut self, _name: &str, _tags: Tags) -> Id {
         println!("[CustomBackend] New counter");
         Id::default()
@@ -31,7 +35,9 @@ impl MetricsBackend for CustomBackend {
 fn main() {
     init_backend_with_config(CustomBackendConfig);
 
-    new_counter("foo", empty_tags());
-    new_counter("foo", empty_tags());
-    new_counter("foo", empty_tags());
+    assert_eq!("custom", get_metrics_backend_name());
+
+    get_metrics_mut().new_counter("foo", empty_tags());
+    get_metrics_mut().new_counter("bar", empty_tags());
+    get_metrics_mut().new_counter("baz", empty_tags());
 }

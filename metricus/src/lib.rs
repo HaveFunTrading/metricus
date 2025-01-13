@@ -5,6 +5,7 @@ pub type Tag<'a> = (&'a str, &'a str);
 pub type Tags<'a> = &'a [Tag<'a>];
 pub type PreAllocatedMetric<'a> = (&'a str, Id, Tags<'a>);
 
+/// Returns empty tags.
 pub const fn empty_tags() -> Tags<'static> {
     &[]
 }
@@ -17,6 +18,8 @@ pub trait MetricsBackend: Sized {
     }
 
     fn new_with_config(config: Self::Config) -> Self;
+
+    fn name(&self) -> &'static str;
 
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id;
 
@@ -34,6 +37,10 @@ pub struct NoOpBackend;
 
 impl MetricsBackend for NoOpBackend {
     type Config = ();
+
+    fn name(&self) -> &'static str {
+        "no-op"
+    }
 
     fn new_with_config(_config: Self::Config) -> Self {
         Self
@@ -55,13 +62,25 @@ impl MetricsBackend for NoOpBackend {
 #[macro_export]
 macro_rules! register_backend {
     ($BackendType:ty) => {
-        /// This enum holds either a no-op or the real backend.
-        pub enum Metrics {
+        /// Holds either a no-op or the real backend.
+        enum Metrics {
+            /// Uninitialised metrics backend.
             Uninit($crate::NoOpBackend),
+            /// Initialised metrics backend.
             Init($BackendType),
         }
 
         impl Metrics {
+            /// Get active backend name.
+            pub fn name(&self) -> &'static str {
+                match self {
+                    Self::Uninit(backend) => backend.name(),
+                    Self::Init(backend) => backend.name(),
+                }
+            }
+
+            /// Create a new counter using the global metrics backend.
+            /// In uninitialized state, this is effectively no-op.
             fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
                 match self {
                     Metrics::Uninit(backend) => backend.new_counter(name, tags),
@@ -69,6 +88,8 @@ macro_rules! register_backend {
                 }
             }
 
+            /// Delete a counter using the global metrics backend.
+            /// In uninitialized state, this is effectively no-op.
             fn delete_counter(&mut self, id: Id) {
                 match self {
                     Metrics::Uninit(backend) => backend.delete_counter(id),
@@ -76,10 +97,14 @@ macro_rules! register_backend {
                 }
             }
 
+            /// Increment a counter by 1 using the global metrics backend.
+            /// In uninitialized state, this is effectively no-op.
             fn increment_counter(&mut self, id: Id) {
                 self.increment_counter_by(id, 1)
             }
 
+            /// Increment a counter by specified delta using the global metrics backend.
+            /// In uninitialized state, this is effectively no-op.
             fn increment_counter_by(&mut self, id: Id, delta: usize) {
                 match self {
                     Metrics::Uninit(backend) => backend.increment_counter_by(id, delta),
@@ -112,28 +137,39 @@ macro_rules! register_backend {
             }
         }
 
-        /// Create a new counter using the global metrics backend.
-        /// In uninitialized state, this is effectively no-op.
-        pub fn new_counter(name: &str, tags: Tags) -> Id {
-            unsafe { METRICS.new_counter(name, tags) }
+        /// Get active metrics backend name.
+        pub fn get_metrics_backend_name() -> &'static str {
+            get_metrics().name()
         }
 
-        /// Delete a counter using the global metrics backend.
-        /// In uninitialized state, this is effectively no-op.
-        pub fn delete_counter(id: Id) {
-            unsafe { METRICS.delete_counter(id) }
+        pub fn get_metrics() -> &'static Metrics {
+            unsafe { &METRICS }
         }
 
-        /// Increment a counter by specified delta using the global metrics backend.
-        /// In uninitialized state, this is effectively no-op.
-        pub fn increment_counter_by(id: Id, delta: usize) {
-            unsafe { METRICS.increment_counter_by(id, delta) }
+        pub fn get_metrics_mut() -> &'static mut Metrics {
+            unsafe { &mut METRICS }
         }
 
-        /// Increment a counter by 1 using the global metrics backend.
-        /// In uninitialized state, this is effectively no-op.
-        pub fn increment_counter(id: Id) {
-            increment_counter_by(id, 1)
+        #[derive(Debug)]
+        pub struct Counter {
+            id: Id,
+        }
+
+        impl Counter {
+            /// Creates a new counter with the specified `name` and `tags`.
+            ///
+            /// # Examples
+            ///
+            /// ```no_run
+            /// use metricus::Counter;
+            ///
+            /// let tags = [("service", "user"), ("status", "active")];
+            /// let counter = Counter::new("user_count", &tags);
+            /// ```
+            pub fn new(name: &str, tags: Tags) -> Self {
+                let counter_id = get_metrics_mut().new_counter(name, tags);
+                Self { id: counter_id }
+            }
         }
     };
 }
