@@ -1,9 +1,9 @@
-use metricus::counter::Counter;
-use metricus::{empty_tags, set_backend, Id, MetricsBackend, Tags};
+use metricus::{get_backend_name, set_backend, Id, MetricsBackend, Tags};
+use metricus_macros::counter;
 
 #[derive(Debug)]
 struct CustomBackend {
-    counter: usize,
+    counter: Id,
 }
 
 impl MetricsBackend for CustomBackend {
@@ -18,23 +18,37 @@ impl MetricsBackend for CustomBackend {
     }
 
     fn new_counter(&mut self, _name: &str, _tags: Tags) -> Id {
+        let id = self.counter;
+        println!("[CustomBackend] new counter: {}", id);
         self.counter += 1;
-        println!("[CustomBackend] new counter: {}", self.counter);
-        Id::default()
+        id
     }
 
     fn delete_counter(&mut self, _id: Id) {
         // no-op
     }
 
-    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+    fn increment_counter_by(&mut self, id: Id, _delta: usize) {
+        println!("[CustomBackend] increment_counter_by: {}", id);
         // no-op
     }
 }
 
+#[counter(measurement = "counters", tags(key1 = "value1", key2 = "value2"))]
+fn foo() {}
+
+#[counter(measurement = "counters", tags(key1 = "value1", key2 = "value2"))]
+fn bar() {}
+
 fn main() {
     set_backend(CustomBackend::new());
+    assert_eq!("custom", get_backend_name());
 
-    Counter::new("foo", empty_tags());
-    Counter::new("bar", empty_tags());
+    foo();
+    foo();
+    foo();
+
+    bar();
+    bar();
+    bar();
 }

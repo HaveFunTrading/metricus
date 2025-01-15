@@ -10,3 +10,16 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
+
+[dev-dependencies]
+# workspace
+metricus_macros = { workspace = true }
+
+# external
+criterion = { workspace = true }
+rtrb = "0.3.2"
+
+[[bench]]
+name = "static_vs_manual_counter"
+path = "benches/static_vs_manual_counter.rs"
+harness = false

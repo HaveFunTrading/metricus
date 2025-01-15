@@ -5,9 +5,13 @@ pub mod counter;
 use crate::access::{get_metrics, get_metrics_mut};
 use std::ops::{Deref, DerefMut};
 
+/// Metric id.
 pub type Id = u64;
+/// Metric tag expresses as key-value pair.
 pub type Tag<'a> = (&'a str, &'a str);
+/// Metrics tags expresses as array of key-value pairs.
 pub type Tags<'a> = &'a [Tag<'a>];
+/// Pre-allocated metric consists of name, id and tags.
 pub type PreAllocatedMetric<'a> = (&'a str, Id, Tags<'a>);
 
 /// Returns empty tags.
@@ -15,7 +19,9 @@ pub const fn empty_tags() -> Tags<'static> {
     &[]
 }
 
+/// Common interface for metrics backend. Each new backend must implement this trait.
 pub trait MetricsBackend: Sized {
+    /// Config associated with this backend.
     type Config: Default;
 
     fn new() -> Self {
@@ -128,15 +134,19 @@ impl DerefMut for Metrics {
     }
 }
 
+/// Initially set to no-op backend.
 static mut METRICS: Metrics = Metrics {
     handle: NO_OP_BACKEND_HANDLE,
 };
 
+/// Set a new metrics backend. This should be called as early as possible. Otherwise,
+/// all metrics calls will delegate to the `NoOpBackend`.
 pub fn set_backend(backend: impl MetricsBackend) {
     get_metrics_mut().handle = backend.into_backend_handle();
 }
 
-pub fn get_active_backend_name() -> &'static str {
+/// Get name of the active metrics backend.
+pub fn get_backend_name() -> &'static str {
     get_metrics().handle.name
 }
 
@@ -147,6 +157,7 @@ struct BackendVTable {
     increment_counter_by: fn(*mut u8, Id, usize),
 }
 
+/// Metrics backend handle.
 pub struct BackendHandle {
     ptr: *mut u8,
     vtable: BackendVTable,

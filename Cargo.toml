@@ -17,4 +17,12 @@ keywords = ["metrics", "low-latency"]
 categories = ["development-tools::debugging"]
 rust-version = "1.83.0"
 
+[workspace.dependencies]
+# workspace
+metricus_macros = { path = "./metricus_macros" }
 
+# eternal
+criterion = "0.5.1"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "1.0", features = ["derive"] }
