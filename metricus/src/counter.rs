@@ -77,10 +77,8 @@ impl Drop for Counter {
     }
 }
 
-
 /// Defines a series of operations that can be performed on a `Counter`.
 pub trait CounterOps {
-
     /// Increments the counter by 1.
     ///
     /// ## Examples
