@@ -11,6 +11,9 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[dependencies]
+quanta = "0.12.5"
+
 [dev-dependencies]
 # workspace
 metricus_macros = { workspace = true }

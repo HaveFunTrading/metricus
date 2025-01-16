@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use metricus::{Counter, CounterOps};
 use metricus::{set_backend, Id, MetricsBackend, Tags};
+use metricus::{Counter, CounterOps};
 use metricus_macros::counter;
 
 #[derive(Debug)]
@@ -30,6 +30,20 @@ impl MetricsBackend for CustomBackend {
     }
 
     fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+        // no-op
+    }
+
+    fn new_histogram(&mut self, _name: &str, _tags: Tags) -> Id {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    fn delete_histogram(&mut self, _id: Id) {
+        // no-op
+    }
+
+    fn record(&mut self, _id: Id, _value: u64) {
         // no-op
     }
 }

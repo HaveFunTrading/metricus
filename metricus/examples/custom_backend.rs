@@ -3,14 +3,14 @@ use metricus_macros::counter;
 
 #[derive(Debug)]
 struct CustomBackend {
-    counter: Id,
+    next_id: Id,
 }
 
 impl MetricsBackend for CustomBackend {
     type Config = ();
 
     fn new_with_config(_config: Self::Config) -> Self {
-        Self { counter: 0 }
+        Self { next_id: 0 }
     }
 
     fn name(&self) -> &'static str {
@@ -18,9 +18,8 @@ impl MetricsBackend for CustomBackend {
     }
 
     fn new_counter(&mut self, _name: &str, _tags: Tags) -> Id {
-        let id = self.counter;
-        println!("[CustomBackend] new counter: {}", id);
-        self.counter += 1;
+        let id = self.next_id;
+        self.next_id += 1;
         id
     }
 
@@ -28,8 +27,21 @@ impl MetricsBackend for CustomBackend {
         // no-op
     }
 
-    fn increment_counter_by(&mut self, id: Id, _delta: usize) {
-        println!("[CustomBackend] increment_counter_by: {}", id);
+    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+        // no-op
+    }
+
+    fn new_histogram(&mut self, _name: &str, _tags: Tags) -> Id {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    fn delete_histogram(&mut self, _id: Id) {
+        // no-op
+    }
+
+    fn record(&mut self, _id: Id, _value: u64) {
         // no-op
     }
 }
@@ -43,7 +55,6 @@ fn bar() {}
 fn main() {
     set_backend(CustomBackend::new());
     assert_eq!("custom", get_backend_name());
-
 
     Counter::new("", empty_tags());
 

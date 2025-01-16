@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod counter;
+pub mod histogram;
 
 use crate::access::{get_metrics, get_metrics_mut};
 use std::ops::{Deref, DerefMut};
@@ -42,6 +43,9 @@ pub trait MetricsBackend: Sized {
             delete_counter: delete_counter_raw::<Self>,
             increment_counter: increment_counter_raw::<Self>,
             increment_counter_by: increment_counter_by_raw::<Self>,
+            new_histogram: new_histogram_raw::<Self>,
+            delete_histogram: delete_histogram_raw::<Self>,
+            record: record_raw::<Self>,
         };
         BackendHandle { ptr, vtable, name }
     }
@@ -57,6 +61,12 @@ pub trait MetricsBackend: Sized {
     fn increment_counter(&mut self, id: Id) {
         self.increment_counter_by(id, 1)
     }
+
+    fn new_histogram(&mut self, name: &str, tags: Tags) -> Id;
+
+    fn delete_histogram(&mut self, id: Id);
+
+    fn record(&mut self, id: Id, value: u64);
 }
 
 fn new_counter_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
@@ -76,6 +86,21 @@ fn increment_counter_by_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, delta: usiz
 
 fn increment_counter_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
     increment_counter_by_raw::<T>(ptr, id, 1)
+}
+
+fn new_histogram_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
+    let backend = unsafe { &mut *(ptr as *mut T) };
+    backend.new_histogram(name, tags)
+}
+
+fn delete_histogram_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
+    let backend = unsafe { &mut *(ptr as *mut T) };
+    backend.delete_histogram(id)
+}
+
+fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
+    let backend = unsafe { &mut *(ptr as *mut T) };
+    backend.record(id, value)
 }
 
 /// A trivial no-op backend for the "uninitialized" state.
@@ -103,6 +128,18 @@ impl MetricsBackend for NoOpBackend {
     fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
         // no-op
     }
+
+    fn new_histogram(&mut self, _name: &str, _tags: Tags) -> Id {
+        Id::default()
+    }
+
+    fn delete_histogram(&mut self, _id: Id) {
+        // no-op
+    }
+
+    fn record(&mut self, _id: Id, _value: u64) {
+        // no-op
+    }
 }
 
 const NO_OP_BACKEND: NoOpBackend = NoOpBackend;
@@ -112,6 +149,9 @@ const NO_OP_BACKEND_VTABLE: BackendVTable = BackendVTable {
     delete_counter: delete_counter_raw::<NoOpBackend>,
     increment_counter: increment_counter_raw::<NoOpBackend>,
     increment_counter_by: increment_counter_by_raw::<NoOpBackend>,
+    new_histogram: new_histogram_raw::<NoOpBackend>,
+    delete_histogram: delete_histogram_raw::<NoOpBackend>,
+    record: record_raw::<NoOpBackend>,
 };
 
 const NO_OP_BACKEND_HANDLE: BackendHandle = BackendHandle {
@@ -159,6 +199,9 @@ struct BackendVTable {
     delete_counter: fn(*mut u8, Id),
     increment_counter: fn(*mut u8, Id),
     increment_counter_by: fn(*mut u8, Id, usize),
+    new_histogram: fn(*mut u8, &str, Tags) -> Id,
+    delete_histogram: fn(*mut u8, Id),
+    record: fn(*mut u8, Id, u64),
 }
 
 /// Metrics backend handle.
@@ -183,6 +226,18 @@ impl BackendHandle {
 
     fn increment_counter(&mut self, id: Id) {
         (self.vtable.increment_counter)(self.ptr, id)
+    }
+
+    fn new_histogram(&mut self, name: &str, tags: Tags) -> Id {
+        (self.vtable.new_histogram)(self.ptr, name, tags)
+    }
+
+    fn delete_histogram(&mut self, id: Id) {
+        (self.vtable.delete_histogram)(self.ptr, id)
+    }
+
+    fn record(&mut self, id: Id, value: u64) {
+        (self.vtable.record)(self.ptr, id, value)
     }
 }
 
