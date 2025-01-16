@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use metricus::counter::{Counter, CounterOps};
+use metricus::{Counter, CounterOps};
 use metricus::{set_backend, Id, MetricsBackend, Tags};
 use metricus_macros::counter;
 

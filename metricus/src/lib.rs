@@ -1,9 +1,13 @@
 #![doc = include_str!("../README.md")]
 
-pub mod counter;
+mod counter;
 
 use crate::access::{get_metrics, get_metrics_mut};
 use std::ops::{Deref, DerefMut};
+
+// re-exports
+pub use counter::Counter;
+pub use counter::CounterOps;
 
 /// Metric id.
 pub type Id = u64;

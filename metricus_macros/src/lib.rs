@@ -129,9 +129,9 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::counter::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::counter::Counter::new(#measurement, &[ #(#tags),* ])));
+            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::Counter::new(#measurement, &[ #(#tags),* ])));
             #[allow(static_mut_refs)]
-            unsafe { metricus::counter::CounterOps::increment(&COUNTER); }
+            unsafe { metricus::CounterOps::increment(&COUNTER); }
 
             #( #fn_body )*
         }
@@ -163,7 +163,7 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Using const expression as id.
 ///
 /// ```ignore
-/// use metricus_macros::counter;
+/// use metricus_macros::counter_with_id;
 ///
 /// const fn get_counter_id() -> CounterId {
 ///     100
@@ -235,9 +235,9 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::counter::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::counter::Counter::new_with_id(#counter_id)));
+            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::Counter::new_with_id(#counter_id)));
             #[allow(static_mut_refs)]
-            unsafe { metricus::counter::CounterOps::increment(&COUNTER); }
+            unsafe { metricus::CounterOps::increment(&COUNTER); }
 
             #( #fn_body )*
         }

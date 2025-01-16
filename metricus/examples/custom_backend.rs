@@ -1,4 +1,4 @@
-use metricus::{get_backend_name, set_backend, Id, MetricsBackend, Tags};
+use metricus::{empty_tags, get_backend_name, set_backend, Counter, Id, MetricsBackend, Tags};
 use metricus_macros::counter;
 
 #[derive(Debug)]
@@ -43,6 +43,9 @@ fn bar() {}
 fn main() {
     set_backend(CustomBackend::new());
     assert_eq!("custom", get_backend_name());
+
+
+    Counter::new("", empty_tags());
 
     foo();
     foo();

@@ -13,7 +13,7 @@ use std::cell::{LazyCell, UnsafeCell};
 /// You can create a counter, increment it, and increment it by a specific value.
 ///
 /// ```no_run
-/// use metricus::counter::{Counter, CounterOps};
+/// use metricus::{Counter, CounterOps};
 ///
 /// let tags = [("service", "payment"), ("currency", "USD")];
 /// let counter = Counter::new("transaction_count", &tags);
@@ -43,13 +43,21 @@ pub struct Counter {
 impl Counter {
     /// Creates a new counter with the specified `name` and `tags`.
     ///
-    /// # #Examples
+    /// ## Examples
     ///
+    /// Create a counter with tags.
     /// ```no_run
-    /// use metricus::counter::Counter;
+    /// use metricus::Counter;
     ///
     /// let tags = [("service", "user"), ("status", "active")];
     /// let counter = Counter::new("user_count", &tags);
+    /// ```
+    ///
+    /// Create a counter without tags.
+    /// ```no_run
+    /// use metricus::{empty_tags, Counter};
+    ///
+    /// let counter = Counter::new("user_count", empty_tags());
     /// ```
     pub fn new(name: &str, tags: Tags) -> Self {
         let counter_id = get_metrics_mut().new_counter(name, tags);
@@ -61,8 +69,10 @@ impl Counter {
     ///
     /// ## Examples
     ///
+    /// Create a counter with specific id.
+    ///
     /// ```no_run
-    /// use metricus::counter::Counter;
+    /// use metricus::Counter;
     ///
     /// let counter = Counter::new_with_id(1);
     /// ```
@@ -84,7 +94,7 @@ pub trait CounterOps {
     /// ## Examples
     ///
     /// ```no_run
-    /// use metricus::counter::{Counter, CounterOps};
+    /// use metricus::{Counter, CounterOps};
     ///
     /// let counter = Counter::new("example_counter", &[]);
     /// counter.increment();
@@ -96,7 +106,7 @@ pub trait CounterOps {
     /// ## Examples
     ///
     /// ```
-    /// use metricus::counter::{Counter, CounterOps};
+    /// use metricus::{Counter, CounterOps};
     ///
     /// let counter = Counter::new("example_counter", &[]);
     /// counter.increment_by(5);
