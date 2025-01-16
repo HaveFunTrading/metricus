@@ -3,23 +3,21 @@
 use proc_macro::TokenStream;
 use std::collections::HashSet;
 
+use proc_macro2::{Ident, Span};
+
 use quote::quote;
 use syn::{parse_macro_input, AttributeArgs, ItemFn, Lit, Meta, MetaList, MetaNameValue, NestedMeta};
 
 /// The `counter` attribute macro instruments a function with a metrics counter,
-/// allowing you to measure how many times a function is called.
-///
-/// # Parameters
-///
-/// * `measurement`: The name of the measurement under which the count will be recorded (required).
-/// * `tags`: An optional comma-separated list of key-value tuples for tagging the measurement,
-///     such as `tags(key1 = "value1", key2 = "value2")`. The function name (`fn_name`) is
-///     automatically added as a tag, so there is no need to include it manually. Tag keys must
-///     be unique.
+/// allowing you to measure how many times a function is called. It requires to specify
+/// `measurement` name under which the count will be recorded. It also accepts optional `tags`
+/// represented as comma-separated list of key-value tuples such as `tags(key1 = "value1", key2 = "value2")`.
+/// The function name (`fn_name`) is automatically added as a tag, so there is no need to include it manually.
+/// All keys must be unique.
 ///
 /// ## Examples
 ///
-/// Create counter with tags.
+/// Create a counter with tags.
 ///
 /// ```ignore
 /// use metricus_macros::counter;
@@ -29,10 +27,10 @@ use syn::{parse_macro_input, AttributeArgs, ItemFn, Lit, Meta, MetaList, MetaNam
 ///     // function body
 /// }
 /// ```
-/// In this example, each call to `my_function_with_tags` increments a counter with the measurement name
+/// In the above example, each call to `my_function_with_tags` increments a counter with the measurement name
 /// "counters" and tagged with the environment. The function name is automatically tagged.
 ///
-/// Create counter without tags.
+/// Create a counter without tags.
 ///
 /// ```ignore
 /// use metricus_macros::counter;
@@ -132,6 +130,112 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
             static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::counter::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::counter::Counter::new(#measurement, &[ #(#tags),* ])));
+            #[allow(static_mut_refs)]
+            unsafe { metricus::counter::CounterOps::increment(&COUNTER); }
+
+            #( #fn_body )*
+        }
+    };
+
+    gen.into()
+}
+
+/// The `counter_with_id` attribute macro instruments a function with a metrics counter with a user
+/// supplied id. This can be useful to provide instrumentation for memory allocators where we need to 'defer' metric
+/// registration until the backend has been registered.
+///
+/// This macro accepts either `u64` value that represents counter `id` or the name of a const function that returns the id
+/// of the counter to be created.
+///
+/// ## Examples
+///
+/// Using integer literal as id.
+///
+/// ```ignore
+/// use metricus_macros::counter_with_id;
+///
+/// #[counter_with_id(id = 100)]
+/// fn my_function() {
+///     // function body
+/// }
+/// ```
+///
+/// Using const expression as id.
+///
+/// ```ignore
+/// use metricus_macros::counter;
+///
+/// const fn get_counter_id() -> CounterId {
+///     100
+/// }
+///
+/// #[counter_with_id(id = "get_counter_id")]
+/// fn my_function() {
+///     // function body
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as AttributeArgs);
+    let input_fn = parse_macro_input!(item as ItemFn);
+    let fn_name = &input_fn.sig.ident;
+
+    // Initialize variables to hold parsed values
+    let mut counter_id_fn = None;
+    let mut counter_id_value = None;
+
+    // Parse attributes for measurement and tags
+    for arg in args {
+        match arg {
+            NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                ref path,
+                lit: Lit::Str(ref value),
+                ..
+            })) if path.is_ident("id") => {
+                counter_id_fn = Some(value.value());
+            }
+            NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                ref path,
+                lit: Lit::Int(value),
+                ..
+            })) if path.is_ident("id") => {
+                counter_id_value = Some(value);
+            }
+            _ => {}
+        }
+    }
+
+    // Ensure counter_id field is provided
+    let counter_id = match counter_id_value {
+        Some(id_int) => quote! { #id_int },
+        None => match counter_id_fn {
+            Some(f) => {
+                let getter_fn = Ident::new(f.as_str(), Span::call_site());
+                quote! { #getter_fn() }
+            }
+            None => {
+                return TokenStream::from(
+                    syn::Error::new_spanned(&input_fn, "Missing required 'id' field").to_compile_error(),
+                )
+            }
+        },
+    };
+
+    let fn_body = &input_fn.block.stmts;
+    let fn_vis = &input_fn.vis;
+    let fn_unsafe = &input_fn.sig.unsafety;
+    let fn_async = &input_fn.sig.asyncness;
+    let fn_args = &input_fn.sig.inputs;
+    let fn_output = &input_fn.sig.output;
+    let fn_generics = &input_fn.sig.generics;
+    let fn_where_clause = &input_fn.sig.generics.where_clause;
+    let attrs = &input_fn.attrs;
+
+    let gen = quote! {
+        #(#attrs)*
+        #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
+
+            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::counter::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::counter::Counter::new_with_id(#counter_id)));
             #[allow(static_mut_refs)]
             unsafe { metricus::counter::CounterOps::increment(&COUNTER); }
 
