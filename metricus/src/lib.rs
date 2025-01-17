@@ -1,14 +1,14 @@
 #![doc = include_str!("../README.md")]
 
 mod counter;
-pub mod histogram;
+mod histogram;
 
 use crate::access::{get_metrics, get_metrics_mut};
 use std::ops::{Deref, DerefMut};
 
 // re-exports
-pub use counter::Counter;
-pub use counter::CounterOps;
+pub use counter::{Counter, CounterOps};
+pub use histogram::{Histogram, HistogramOps};
 
 /// Metric id.
 pub type Id = u64;

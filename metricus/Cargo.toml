@@ -11,8 +11,12 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+rdtsc = ["dep:quanta"]
+
 [dependencies]
-quanta = "0.12.5"
+quanta = { version = "0.12.5", optional = true }
 
 [dev-dependencies]
 # workspace
@@ -23,6 +27,6 @@ criterion = { workspace = true }
 rtrb = "0.3.2"
 
 [[bench]]
-name = "static_vs_manual_counter"
-path = "benches/static_vs_manual_counter.rs"
+name = "static_vs_manual"
+path = "benches/static_vs_manual.rs"
 harness = false

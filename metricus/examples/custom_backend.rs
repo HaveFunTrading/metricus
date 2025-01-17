@@ -1,5 +1,5 @@
-use metricus::{empty_tags, get_backend_name, set_backend, Counter, Id, MetricsBackend, Tags};
-use metricus_macros::counter;
+use metricus::{empty_tags, get_backend_name, set_backend, Histogram, Id, MetricsBackend, Tags};
+use metricus_macros::{counter, span};
 
 #[derive(Debug)]
 struct CustomBackend {
@@ -52,11 +52,14 @@ fn foo() {}
 #[counter(measurement = "counters", tags(key1 = "value1", key2 = "value2"))]
 fn bar() {}
 
+#[span(measurement = "latencies", tags(key1 = "value1", key2 = "value2"))]
+fn baz() {}
+
 fn main() {
     set_backend(CustomBackend::new());
     assert_eq!("custom", get_backend_name());
 
-    Counter::new("", empty_tags());
+    Histogram::new("", empty_tags());
 
     foo();
     foo();
@@ -65,4 +68,8 @@ fn main() {
     bar();
     bar();
     bar();
+
+    baz();
+    baz();
+    baz();
 }

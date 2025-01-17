@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use metricus::{set_backend, Id, MetricsBackend, Tags};
-use metricus::{Counter, CounterOps};
-use metricus_macros::counter;
+use metricus::{set_backend, Counter, HistogramOps, Id, MetricsBackend, Tags};
+use metricus::{CounterOps, Histogram};
+use metricus_macros::{counter, span};
 
 #[derive(Debug)]
 struct CustomBackend {
@@ -63,6 +63,21 @@ fn benchmark_static_counter(c: &mut Criterion) {
     });
 }
 
+fn benchmark_static_histogram(c: &mut Criterion) {
+    #[span(measurement = "latencies", tags(key1 = "value1", key2 = "value2"))]
+    fn foo(arg: usize) {
+        black_box(arg);
+    }
+
+    set_backend(CustomBackend::new());
+
+    c.benchmark_group("metrics").bench_function("static_histogram", |b| {
+        b.iter(|| {
+            foo(1);
+        });
+    });
+}
+
 fn benchmark_manual_counter(c: &mut Criterion) {
     struct CounterHolder {
         counter: Counter,
@@ -88,5 +103,31 @@ fn benchmark_manual_counter(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, benchmark_static_counter, benchmark_manual_counter);
-criterion_main!(benches);
+fn benchmark_manual_histogram(c: &mut Criterion) {
+    struct HistogramHolder {
+        histogram: Histogram,
+    }
+
+    impl HistogramHolder {
+        fn foo(&self, arg: usize) {
+            let _span = self.histogram.span();
+            black_box(arg);
+        }
+    }
+
+    set_backend(CustomBackend::new());
+
+    let histogram_holder = HistogramHolder {
+        histogram: Histogram::new("latencies", &[("fn_name", "foo"), ("key1", "value1"), ("key2", "value2")]),
+    };
+
+    c.benchmark_group("metrics").bench_function("manual_histogram", |b| {
+        b.iter(|| {
+            histogram_holder.foo(1);
+        });
+    });
+}
+
+criterion_group!(benches_counter, benchmark_static_counter, benchmark_manual_counter);
+criterion_group!(benches_histogram, benchmark_static_histogram, benchmark_manual_histogram);
+criterion_main!(benches_counter, benches_histogram);
