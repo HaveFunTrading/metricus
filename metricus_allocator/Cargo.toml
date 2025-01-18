@@ -1,5 +1,5 @@
 [package]
-name = "metricus"
+name = "metricus_allocator"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,20 +11,16 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[dependencies]
+# internal
+metricus = { workspace = true }
+metricus_macros = { workspace = true }
+
+# external
+jemallocator = { workspace = true, optional = true }
+mimalloc = { workspace = true, optional = true }
+
 [features]
 default = []
-rdtsc = ["dep:quanta"]
-
-[dependencies]
-quanta = { workspace = true, optional = true }
-
-[dev-dependencies]
-# workspace
-metricus_macros = { workspace = true }
-# external
-criterion = { workspace = true }
-
-[[bench]]
-name = "static_vs_manual"
-path = "benches/static_vs_manual.rs"
-harness = false
+jemalloc = ["dep:jemallocator"]
+mimalloc = ["dep:mimalloc"]

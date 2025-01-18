@@ -2,6 +2,7 @@
 members = [
     "metricus",
     "metricus_agent",
+    "metricus_allocator",
     "metricus_macros"
 ]
 resolver = "2"
@@ -19,12 +20,16 @@ rust-version = "1.83.0"
 
 [workspace.dependencies]
 # workspace
+metricus = { path = "./metricus" }
 metricus_macros = { path = "./metricus_macros" }
 # external
 criterion = "0.5.1"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "1.0", features = ["derive"] }
+jemallocator = "0.5"
+mimalloc = "0.1"
+quanta = "0.12.5"
 
 [profile.bench]
 lto = true
