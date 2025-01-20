@@ -26,15 +26,6 @@ pub const fn empty_tags() -> Tags<'static> {
 
 /// Common interface for metrics backend. Each new backend must implement this trait.
 pub trait MetricsBackend: Sized {
-    /// Config associated with this backend.
-    type Config: Default;
-
-    fn new() -> Self {
-        Self::new_with_config(Self::Config::default())
-    }
-
-    fn new_with_config(config: Self::Config) -> Self;
-
     fn into_backend_handle(self) -> BackendHandle {
         let name = self.name();
         let ptr = Box::into_raw(Box::new(self)) as *mut _;
@@ -107,12 +98,6 @@ fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
 struct NoOpBackend;
 
 impl MetricsBackend for NoOpBackend {
-    type Config = ();
-
-    fn new_with_config(_config: Self::Config) -> Self {
-        Self
-    }
-
     fn name(&self) -> &'static str {
         "no-op"
     }

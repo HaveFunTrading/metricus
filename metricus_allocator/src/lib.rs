@@ -53,6 +53,10 @@ unsafe impl GlobalAlloc for CountingAllocator {
     // `counter_with_id` creates a counter object without registering it.
     // This is used for allocation and de-allocation counters, which are special cases that are initialised before the metrics backend is created.
     // In that case, the `Counter` is created with the `NoOpBackend`, so we defer the registration of the counters until the actual backend is ready.
+
+    // FIXME has to be thread safe
+    // TODO can we attach thread id and name - so maybe thread_local counter
+
     #[counter_with_id(id = "get_alloc_id")]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // in addition to the number of allocations count the number of bytes allocated

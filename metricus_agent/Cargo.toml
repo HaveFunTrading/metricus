@@ -10,3 +10,20 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
+
+[dependencies]
+# workspace
+metricus = { workspace = true }
+metricus_macros = { workspace = true }
+
+# external
+anyhow = { workspace = true }
+duration-str = { workspace = true }
+hdrhistogram = { workspace = true }
+itoa = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+rtrb = { workspace = true}

@@ -1,0 +1,83 @@
+use crate::aggregator::Encoder;
+use crate::OwnedTags;
+use duration_str::deserialize_duration;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use std::collections::HashMap;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::time::Duration;
+use std::vec;
+
+/// Metrics config to be passed to MetricsAgent during initialisation.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct MetricsConfig {
+    /// Interval at which metrics are written to the targets.
+    #[serde(deserialize_with = "deserialize_duration")]
+    #[serde(default = "get_default_flush_interval")]
+    pub flush_interval: Duration,
+    /// Default tags that will be added to all metrics.
+    #[serde_as(as = "HashMap<_, _>")]
+    #[serde(default)]
+    pub default_tags: OwnedTags,
+    /// Event channel size between the metrics agent and aggregator. This defaults to 1 million.
+    #[serde(default = "get_default_event_channel_size")]
+    pub event_channel_size: usize,
+    pub exporter: ExporterSource,
+}
+
+impl MetricsConfig {
+    pub fn from_file(path: &str) -> std::io::Result<MetricsConfig> {
+        serde_yaml::from_reader(std::fs::File::open(path)?).map_err(|e| std::io::Error::other(e))
+    }
+
+    pub fn from_str(config: &str) -> std::io::Result<MetricsConfig> {
+        serde_yaml::from_str(config).map_err(|e| std::io::Error::other(e))
+    }
+}
+
+const fn get_default_event_channel_size() -> usize {
+    1024 * 1024
+}
+
+const fn get_default_flush_interval() -> Duration {
+    Duration::from_secs(10)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum Format {
+    LineProtocol,
+    Json,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", content = "config")]
+pub enum ExporterSource {
+    #[default]
+    NoOp,
+    Udp(UdpConfig),
+    File(FileConfig),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UdpConfig {
+    pub host: String,
+    pub port: u16,
+    pub encoder: Encoder,
+}
+
+impl ToSocketAddrs for UdpConfig {
+    type Iter = vec::IntoIter<SocketAddr>;
+
+    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
+        format!("{}:{}", self.host, self.port).to_socket_addrs()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FileConfig {
+    pub path: String,
+    pub encoder: Encoder,
+}

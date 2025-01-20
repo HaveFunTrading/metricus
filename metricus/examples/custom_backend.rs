@@ -1,4 +1,4 @@
-use metricus::{empty_tags, get_backend_name, set_backend, Histogram, Id, MetricsBackend, Tags};
+use metricus::{get_backend_name, set_backend, Id, MetricsBackend, Tags};
 use metricus_macros::{counter, span};
 
 #[derive(Debug)]
@@ -6,13 +6,13 @@ struct CustomBackend {
     next_id: Id,
 }
 
-impl MetricsBackend for CustomBackend {
-    type Config = ();
-
-    fn new_with_config(_config: Self::Config) -> Self {
+impl CustomBackend {
+    pub fn new() -> Self {
         Self { next_id: 0 }
     }
+}
 
+impl MetricsBackend for CustomBackend {
     fn name(&self) -> &'static str {
         "custom"
     }
@@ -58,8 +58,6 @@ fn baz() {}
 fn main() {
     set_backend(CustomBackend::new());
     assert_eq!("custom", get_backend_name());
-
-    Histogram::new("", empty_tags());
 
     foo();
     foo();

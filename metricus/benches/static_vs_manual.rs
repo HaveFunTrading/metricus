@@ -8,13 +8,13 @@ struct CustomBackend {
     next_id: Id,
 }
 
-impl MetricsBackend for CustomBackend {
-    type Config = ();
-
-    fn new_with_config(_config: Self::Config) -> Self {
+impl CustomBackend {
+    fn new() -> Self {
         Self { next_id: 0 }
     }
+}
 
+impl MetricsBackend for CustomBackend {
     fn name(&self) -> &'static str {
         "custom"
     }
