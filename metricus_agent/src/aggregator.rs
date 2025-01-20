@@ -147,7 +147,7 @@ struct Json;
 impl Json {
     fn encode_counter(counter: &Counter, timestamp: u64, dst: &mut impl Write) -> std::io::Result<()> {
         serde_json::to_writer(&mut *dst, &CounterWithTimestamp::new(counter, timestamp))
-            .map_err(|e| std::io::Error::other(e))
+            .map_err(std::io::Error::other)
             .and_then(|_| dst.write_all(b"\n"))
     }
 }

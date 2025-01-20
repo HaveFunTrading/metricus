@@ -5,13 +5,11 @@ pub mod config;
 mod error;
 mod exporter;
 
-use crate::aggregator::{Counter, MetricsAggregator};
+use crate::aggregator::MetricsAggregator;
+use crate::config::MetricsConfig;
 use metricus::{set_backend, Id, MetricsBackend, Tag, Tags};
 use rtrb::Producer;
 use std::collections::HashMap;
-use std::io::Write;
-use crate::config::MetricsConfig;
-use crate::exporter::Exporter;
 
 type OwnedTag = (String, String);
 type OwnedTags = Vec<OwnedTag>;
@@ -43,7 +41,6 @@ pub struct MetricsAgent {
 }
 
 impl MetricsAgent {
-
     pub fn init() {
         Self::init_with_config(MetricsConfig::default());
     }
@@ -149,5 +146,3 @@ impl MetricKey {
         }
     }
 }
-
-

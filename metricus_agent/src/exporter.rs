@@ -1,9 +1,10 @@
 use crate::aggregator::{Counter, Encoder};
 use crate::config::{ExporterSource, FileConfig, UdpConfig};
+use log::warn;
 use metricus::Id;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, File};
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, ErrorKind, Write};
 use std::net::UdpSocket;
 use std::path::Path;
 
@@ -17,13 +18,13 @@ impl Exporter {
     pub fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
         match self {
             Exporter::NoOp => Ok(()),
-            Exporter::Udp(exporter) => exporter.publish_counters(counters),
+            Exporter::Udp(exporter) => exporter.publish_counters(counters, timestamp),
             Exporter::File(exporter) => exporter.publish_counters(counters, timestamp),
         }
     }
 }
 
-struct UdpExporter {
+pub struct UdpExporter {
     socket: UdpSocket,
     buffer: Vec<u8>,
     encoder: Encoder,
@@ -33,7 +34,7 @@ impl TryFrom<UdpConfig> for UdpExporter {
     type Error = std::io::Error;
 
     fn try_from(config: UdpConfig) -> Result<Self, Self::Error> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        let socket = UdpSocket::bind("127.0.0.1:0")?;
         socket.connect(&config)?;
         Ok(Self {
             socket,
@@ -44,17 +45,25 @@ impl TryFrom<UdpConfig> for UdpExporter {
 }
 
 impl UdpExporter {
-    fn publish_counters(&mut self, counters: &HashMap<Id, Counter>) -> std::io::Result<()> {
-        todo!()
-        // FIXME this should take a batch of counters
-        // self.encoder.encode_counter(counter, &mut self.buffer)?;
-        // self.socket.send(&self.buffer)?;
-        // self.buffer.clear();
-        // Ok(())
+    fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
+        for counter in counters.values() {
+            self.encoder.encode_counter(counter, timestamp, &mut self.buffer)?;
+        }
+
+        // we can ignore connection refused in case the udp listener is temporarily unavailable
+        if let Err(err) = self.socket.send(&self.buffer) {
+            match err.kind() {
+                ErrorKind::ConnectionRefused => warn!("Failed to send metrics via udp: [{}]", err),
+                _ => Err(err)?,
+            }
+        }
+
+        self.buffer.clear();
+        Ok(())
     }
 }
 
-struct FileExporter {
+pub struct FileExporter {
     writer: BufWriter<File>,
     encoder: Encoder,
 }

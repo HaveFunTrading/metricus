@@ -11,11 +11,14 @@ fn bar() {}
 fn main() -> anyhow::Result<()> {
     const CONFIG: &'static str = r#"
     exporter:
-        type: file
+        type: udp
         config:
-            path: metrics.jsonl
+            host: 127.0.0.1
+            port: 8777
             encoder: json
     "#;
+
+    env_logger::init();
 
     MetricsAgent::init_with_config(MetricsConfig::from_str(CONFIG)?);
 
