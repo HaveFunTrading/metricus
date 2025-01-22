@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::HashMap;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 use std::vec;
@@ -31,7 +32,7 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    pub fn from_file(path: &str) -> std::io::Result<MetricsConfig> {
+    pub fn from_file(path: impl AsRef<Path>) -> std::io::Result<MetricsConfig> {
         serde_yaml::from_reader(std::fs::File::open(path)?).map_err(std::io::Error::other)
     }
 
