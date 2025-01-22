@@ -26,6 +26,7 @@ pub struct MetricsConfig {
     #[serde(default = "get_default_event_channel_size")]
     pub event_channel_size: usize,
     pub exporter: ExporterSource,
+    #[serde(default)]
     pub pre_allocated_metrics: Vec<PreAllocatedMetric>,
 }
 

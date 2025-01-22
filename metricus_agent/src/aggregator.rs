@@ -1,15 +1,21 @@
 use crate::exporter::Exporter;
 use crate::{Event, OwnedTags};
 use metricus::Id;
+#[cfg(feature = "rtrb")]
 use rtrb::Consumer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
+#[cfg(not(feature = "rtrb"))]
+use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub struct MetricsAggregator {
+    #[cfg(feature = "rtrb")]
     rx: Consumer<Event>,
+    #[cfg(not(feature = "rtrb"))]
+    rx: Receiver<Event>,
     exporter: Exporter,
     counters: HashMap<Id, Counter>,
     histograms: HashMap<Id, Histogram>,
@@ -18,7 +24,12 @@ pub struct MetricsAggregator {
 }
 
 impl MetricsAggregator {
-    pub fn new(rx: Consumer<Event>, exporter: Exporter, flush_interval: Duration) -> Self {
+    pub fn new(
+        #[cfg(feature = "rtrb")] rx: Consumer<Event>,
+        #[cfg(not(feature = "rtrb"))] rx: Receiver<Event>,
+        exporter: Exporter,
+        flush_interval: Duration,
+    ) -> Self {
         Self {
             rx,
             exporter,
@@ -30,7 +41,8 @@ impl MetricsAggregator {
     }
 
     pub fn start_on_thread(
-        rx: Consumer<Event>,
+        #[cfg(feature = "rtrb")] rx: Consumer<Event>,
+        #[cfg(not(feature = "rtrb"))] rx: Receiver<Event>,
         exporter: Exporter,
         flush_interval: Duration,
     ) -> JoinHandle<Result<(), &'static str>> {
@@ -38,11 +50,12 @@ impl MetricsAggregator {
             let mut aggregator = MetricsAggregator::new(rx, exporter, flush_interval);
             loop {
                 aggregator.poll();
-                std::thread::sleep(std::time::Duration::from_millis(1));
+                std::thread::sleep(Duration::from_millis(1));
             }
         })
     }
 
+    #[inline]
     fn poll(&mut self) {
         self.process_events();
         let now = current_time_ns();
@@ -52,38 +65,54 @@ impl MetricsAggregator {
         }
     }
 
+    #[cfg(feature = "rtrb")]
+    #[inline]
     fn process_events(&mut self) {
         let available = self.rx.slots();
         if let Ok(chunk) = self.rx.read_chunk(available) {
             for event in chunk {
-                match event {
-                    Event::CounterCreate(id, name, tags) => {
-                        self.counters.entry(id).or_insert_with(|| Counter::new(name, tags));
-                    }
-                    Event::CounterIncrement(id, delta) => {
-                        if let Some(counter) = self.counters.get_mut(&id) {
-                            counter.increment(delta);
-                        }
-                    }
-                    Event::CounterDelete(id) => {
-                        self.counters.remove(&id);
-                    }
-                    Event::HistogramCreate(id, name, tags) => {
-                        self.histograms.entry(id).or_insert_with(|| Histogram::new(name, tags));
-                    }
-                    Event::HistogramDelete(id) => {
-                        self.histograms.remove(&id);
-                    }
-                    Event::HistogramRecord(id, value) => {
-                        if let Some(histogram) = self.histograms.get_mut(&id) {
-                            histogram.inner.record(value).unwrap();
-                        }
-                    }
+                Self::handle_event(&mut self.counters, &mut self.histograms, event);
+            }
+        }
+    }
+
+    #[cfg(not(feature = "rtrb"))]
+    #[inline]
+    fn process_events(&mut self) {
+        for event in self.rx.try_iter() {
+            Self::handle_event(&mut self.counters, &mut self.histograms, event);
+        }
+    }
+
+    #[inline]
+    fn handle_event(counters: &mut HashMap<Id, Counter>, histograms: &mut HashMap<Id, Histogram>, event: Event) {
+        match event {
+            Event::CounterCreate(id, name, tags) => {
+                counters.entry(id).or_insert_with(|| Counter::new(name, tags));
+            }
+            Event::CounterIncrement(id, delta) => {
+                if let Some(counter) = counters.get_mut(&id) {
+                    counter.increment(delta);
+                }
+            }
+            Event::CounterDelete(id) => {
+                counters.remove(&id);
+            }
+            Event::HistogramCreate(id, name, tags) => {
+                histograms.entry(id).or_insert_with(|| Histogram::new(name, tags));
+            }
+            Event::HistogramDelete(id) => {
+                histograms.remove(&id);
+            }
+            Event::HistogramRecord(id, value) => {
+                if let Some(histogram) = histograms.get_mut(&id) {
+                    histogram.inner.record(value).unwrap();
                 }
             }
         }
     }
 
+    #[inline]
     fn flush_metrics(&mut self, timestamp: u64) -> std::io::Result<()> {
         self.exporter.publish_counters(&self.counters, timestamp)?;
         self.exporter.publish_histograms(&self.histograms, timestamp)?;

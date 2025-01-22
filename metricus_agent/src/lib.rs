@@ -8,7 +8,11 @@ mod exporter;
 use crate::aggregator::MetricsAggregator;
 use crate::config::MetricsConfig;
 use metricus::{set_backend, Id, MetricsBackend, Tag, Tags};
+#[cfg(feature = "rtrb")]
 use rtrb::Producer;
+#[cfg(not(feature = "rtrb"))]
+use std::sync::mpsc::SyncSender;
+
 use std::collections::HashMap;
 
 type OwnedTag = (String, String);
@@ -35,7 +39,10 @@ impl ToOwnedTag for Tag<'_> {
 }
 
 pub struct MetricsAgent {
+    #[cfg(feature = "rtrb")]
     tx: Producer<Event>,
+    #[cfg(not(feature = "rtrb"))]
+    tx: SyncSender<Event>,
     next_id: Id,
     metric_key_to_id: HashMap<MetricKey, Id>,
 }
@@ -46,13 +53,26 @@ impl MetricsAgent {
     }
 
     pub fn init_with_config(config: MetricsConfig) {
+        #[cfg(feature = "rtrb")]
         let (tx, rx) = rtrb::RingBuffer::new(config.event_channel_size);
+        #[cfg(not(feature = "rtrb"))]
+        let (tx, rx) = std::sync::mpsc::sync_channel(config.event_channel_size);
         let exporter = config.exporter.try_into().unwrap();
         let _ = MetricsAggregator::start_on_thread(rx, exporter, config.flush_interval);
         set_backend(MetricsAgent::new(tx));
     }
 
+    #[cfg(feature = "rtrb")]
     fn new(tx: Producer<Event>) -> Self {
+        Self {
+            tx,
+            next_id: 0,
+            metric_key_to_id: Default::default(),
+        }
+    }
+
+    #[cfg(not(feature = "rtrb"))]
+    fn new(tx: SyncSender<Event>) -> Self {
         Self {
             tx,
             next_id: 0,
@@ -74,7 +94,10 @@ impl MetricsAgent {
 
     #[inline]
     fn send_event(&mut self, event: Event) {
+        #[cfg(feature = "rtrb")]
         let _ = self.tx.push(event);
+        #[cfg(not(feature = "rtrb"))]
+        let _ = self.tx.send(event);
     }
 }
 

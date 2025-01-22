@@ -3,7 +3,6 @@
 use metricus::{Counter, CounterOps, Id, PreAllocatedMetric};
 use std::alloc::{GlobalAlloc, Layout};
 use std::sync::{LazyLock, Mutex};
-use std::sync::atomic::AtomicPtr;
 
 const ALLOC_COUNTER_ID: Id = Id::MAX - 1004;
 const ALLOC_BYTES_COUNTER_ID: Id = Id::MAX - 1003;

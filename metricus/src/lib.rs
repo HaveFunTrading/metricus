@@ -3,13 +3,11 @@
 mod counter;
 mod histogram;
 
-use std::arch::x86_64::_mm_mfence;
-use crate::access::{get_metrics, get_metrics_mut};
-use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{fence, Ordering};
+use crate::access::get_metrics;
 // re-exports
 pub use counter::{Counter, CounterOps};
 pub use histogram::{Histogram, HistogramOps};
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// Metric id.
 pub type Id = u64;
@@ -147,37 +145,41 @@ const NO_OP_BACKEND_HANDLE: BackendHandle = BackendHandle {
 };
 
 struct Metrics {
-    handle: BackendHandle,
+    handle: AtomicRef<BackendHandle>,
 }
 
-impl Deref for Metrics {
-    type Target = BackendHandle;
-
-    fn deref(&self) -> &Self::Target {
-        &self.handle
-    }
-}
-
-impl DerefMut for Metrics {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.handle
-    }
-}
+// impl Deref for Metrics {
+//     type Target = BackendHandle;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.handle
+//     }
+// }
+//
+// impl DerefMut for Metrics {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.handle
+//     }
+// }
 
 /// Initially set to no-op backend.
 static mut METRICS: Metrics = Metrics {
-    handle: NO_OP_BACKEND_HANDLE,
+    handle: AtomicRef::new(&NO_OP_BACKEND_HANDLE),
 };
 
 /// Set a new metrics backend. This should be called as early as possible. Otherwise,
 /// all metrics calls will delegate to the `NoOpBackend`.
 pub fn set_backend(backend: impl MetricsBackend) {
-    get_metrics_mut().handle = backend.into_backend_handle();
+    #[allow(static_mut_refs)]
+    unsafe { &mut METRICS }
+        .handle
+        .store(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
+    // get_metrics_mut().handle.store(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
 }
 
 /// Get name of the active metrics backend.
 pub fn get_backend_name() -> &'static str {
-    get_metrics().handle.name
+    get_metrics().name
 }
 
 struct BackendVTable {
@@ -227,16 +229,50 @@ impl BackendHandle {
     }
 }
 
-mod access {
-    use crate::{Metrics, METRICS};
+struct AtomicRef<T> {
+    ptr: AtomicPtr<T>,
+}
 
-    #[allow(static_mut_refs)]
-    pub fn get_metrics_mut() -> &'static mut Metrics {
-        unsafe { &mut METRICS }
+impl<T> AtomicRef<T> {
+    pub const fn new(data: &T) -> Self {
+        Self {
+            ptr: AtomicPtr::new(data as *const T as *mut T),
+        }
     }
 
+    pub fn load(&self, order: Ordering) -> &mut T {
+        unsafe { &mut *self.ptr.load(order) }
+    }
+
+    pub fn store(&self, new_ref: &T, order: Ordering) {
+        self.ptr.store(new_ref as *const T as *mut T, order);
+    }
+}
+
+unsafe impl<T> Send for AtomicRef<T> {}
+unsafe impl<T> Sync for AtomicRef<T> {}
+
+mod access {
+    use crate::{BackendHandle, METRICS};
+    use std::sync::atomic::Ordering;
+
+    // #[allow(static_mut_refs)]
+    // pub fn get_metrics_mut() -> &'static mut Metrics {
+    //     unsafe { &mut METRICS }
+    // }
+
     #[allow(static_mut_refs)]
-    pub fn get_metrics() -> &'static Metrics {
-        unsafe { &METRICS }
+    pub fn get_metrics_mut() -> &'static mut BackendHandle {
+        unsafe { &METRICS }.handle.load(Ordering::Acquire)
+    }
+
+    // #[allow(static_mut_refs)]
+    // pub fn get_metrics() -> &'static Metrics {
+    //     unsafe { &METRICS }
+    // }
+
+    #[allow(static_mut_refs)]
+    pub fn get_metrics() -> &'static BackendHandle {
+        unsafe { &METRICS }.handle.load(Ordering::Acquire)
     }
 }
