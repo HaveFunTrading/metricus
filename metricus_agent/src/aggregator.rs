@@ -47,7 +47,7 @@ impl MetricsAggregator {
         self.process_events();
         let now = current_time_ns();
         if now > self.next_flush_time_ns {
-            self.flush_counters(now).unwrap(); // TODO error handling
+            self.flush_metrics(now).unwrap(); // TODO error handling
             self.next_flush_time_ns = now + self.flush_interval_ns;
         }
     }
@@ -68,16 +68,26 @@ impl MetricsAggregator {
                     Event::CounterDelete(id) => {
                         self.counters.remove(&id);
                     }
-                    Event::HistogramCreate(_, _, _) => {}
-                    Event::HistogramDelete(_) => {}
-                    Event::HistogramRecord(_, _) => {}
+                    Event::HistogramCreate(id, name, tags) => {
+                        self.histograms.entry(id).or_insert_with(|| Histogram::new(name, tags));
+                    }
+                    Event::HistogramDelete(id) => {
+                        self.histograms.remove(&id);
+                    }
+                    Event::HistogramRecord(id, value) => {
+                        if let Some(histogram) = self.histograms.get_mut(&id) {
+                            histogram.inner.record(value).unwrap();
+                        }
+                    }
                 }
             }
         }
     }
 
-    fn flush_counters(&mut self, timestamp: u64) -> std::io::Result<()> {
-        self.exporter.publish_counters(&self.counters, timestamp)
+    fn flush_metrics(&mut self, timestamp: u64) -> std::io::Result<()> {
+        self.exporter.publish_counters(&self.counters, timestamp)?;
+        self.exporter.publish_histograms(&self.histograms, timestamp)?;
+        Ok(())
     }
 }
 
@@ -101,9 +111,18 @@ impl Counter {
     }
 }
 
-struct Histogram {
+pub struct Histogram {
     inner: hdrhistogram::Histogram<u64>,
     meta_data: MetaData,
+}
+
+impl Histogram {
+    fn new(name: String, tags: OwnedTags) -> Self {
+        Self {
+            inner: hdrhistogram::Histogram::<u64>::new(3).unwrap(),
+            meta_data: MetaData::new(name, tags),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -128,8 +147,15 @@ pub enum Encoder {
 impl Encoder {
     pub fn encode_counter(&self, counter: &Counter, timestamp: u64, dst: &mut impl Write) -> std::io::Result<()> {
         match self {
-            Encoder::LineProtocol => LineProtocol::encode_counter(counter, dst),
+            Encoder::LineProtocol => LineProtocol::encode_counter(counter, timestamp, dst),
             Encoder::Json => Json::encode_counter(counter, timestamp, dst),
+        }
+    }
+
+    pub fn encode_histogram(&self, histogram: &Histogram, timestamp: u64, dst: &mut impl Write) -> std::io::Result<()> {
+        match self {
+            Encoder::LineProtocol => LineProtocol::encode_histogram(histogram, timestamp, dst),
+            Encoder::Json => Ok(()),
         }
     }
 }
@@ -137,8 +163,94 @@ impl Encoder {
 struct LineProtocol;
 
 impl LineProtocol {
-    fn encode_counter(_counter: &Counter, _dst: &mut impl Write) -> std::io::Result<()> {
-        todo!()
+    fn encode_counter(counter: &Counter, timestamp: u64, dst: &mut impl Write) -> std::io::Result<()> {
+        // measurement
+        dst.write_all(counter.meta_data.name.as_bytes())?;
+        // tags
+        for tag in counter.meta_data.tags.iter() {
+            dst.write_all(b",")?;
+            dst.write_all(tag.0.as_bytes())?;
+            dst.write_all(b"=")?;
+            dst.write_all(tag.1.as_bytes())?;
+        }
+        // field
+        dst.write_all(b" value=")?;
+        dst.write_all(itoa::Buffer::new().format(counter.value).as_bytes())?;
+        dst.write_all(b"u ")?;
+        // timestamp
+        dst.write_all(itoa::Buffer::new().format(timestamp).as_bytes())?;
+        // new line
+        dst.write_all(b"\n")?;
+        Ok(())
+    }
+
+    fn encode_histogram(histogram: &Histogram, timestamp: u64, dst: &mut impl Write) -> std::io::Result<()> {
+        // measurement
+        dst.write_all(histogram.meta_data.name.as_bytes())?;
+        // tags
+        for tag in histogram.meta_data.tags.iter() {
+            dst.write_all(b",")?;
+            dst.write_all(tag.0.as_bytes())?;
+            dst.write_all(b"=")?;
+            dst.write_all(tag.1.as_bytes())?;
+        }
+        // fields
+        dst.write_all(b" count=")?;
+        dst.write_all(itoa::Buffer::new().format(histogram.inner.len()).as_bytes())?;
+        dst.write_all(b"u,min=")?;
+        dst.write_all(itoa::Buffer::new().format(histogram.inner.min()).as_bytes())?;
+        dst.write_all(b"u,max=")?;
+        dst.write_all(itoa::Buffer::new().format(histogram.inner.max()).as_bytes())?;
+        dst.write_all(b"u,mean=")?;
+        dst.write_all(dtoa::Buffer::new().format(histogram.inner.mean()).as_bytes())?;
+        dst.write_all(b"f,p50=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.50))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p75=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.75))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p90=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.90))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p95=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.95))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p99=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.99))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p999=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.999))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u,p9999=")?;
+        dst.write_all(
+            itoa::Buffer::new()
+                .format(histogram.inner.value_at_quantile(0.9999))
+                .as_bytes(),
+        )?;
+        dst.write_all(b"u ")?;
+        // timestamp
+        dst.write_all(itoa::Buffer::new().format(timestamp).as_bytes())?;
+        // new line
+        dst.write_all(b"\n")?;
+        Ok(())
     }
 }
 

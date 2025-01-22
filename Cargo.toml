@@ -41,6 +41,7 @@ serde_yaml = "0.9.33"
 thiserror = "2.0.7"
 rtrb = "0.3.2"
 log = "0.4.25"
+dtoa = "1.0.9"
 
 [profile.bench]
 lto = true

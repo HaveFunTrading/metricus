@@ -64,6 +64,7 @@ pub enum ExporterSource {
     NoOp,
     Udp(UdpConfig),
     File(FileConfig),
+    UnixSocket(UnixSocketConfig),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -83,6 +84,12 @@ impl ToSocketAddrs for UdpConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileConfig {
+    pub path: String,
+    pub encoder: Encoder,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UnixSocketConfig {
     pub path: String,
     pub encoder: Encoder,
 }

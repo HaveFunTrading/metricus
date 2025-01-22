@@ -1,6 +1,7 @@
 use metricus_agent::config::MetricsConfig;
 use metricus_agent::MetricsAgent;
 use metricus_macros::counter;
+use std::str::FromStr;
 
 #[counter(measurement = "counters", tags(key1 = "value1", key2 = "value2"))]
 fn foo() {}
@@ -9,7 +10,7 @@ fn foo() {}
 fn bar() {}
 
 fn main() -> anyhow::Result<()> {
-    const CONFIG: &'static str = r#"
+    const CONFIG: &str = r#"
     exporter:
         type: udp
         config:
