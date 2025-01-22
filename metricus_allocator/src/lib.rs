@@ -119,9 +119,9 @@ thread_local! {
 /// static GLOBAL: CountingAllocator = CountingAllocator;
 ///
 /// fn main() {
-///     std::thread::spawn(|| {
+///     let _ = std::thread::spawn(|| {
 ///         enable_allocator_instrumentation();
-///     })
+///     });
 /// }
 /// ```
 pub fn enable_allocator_instrumentation() {
