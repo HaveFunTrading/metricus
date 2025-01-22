@@ -7,6 +7,7 @@ use crate::access::get_metrics;
 // re-exports
 pub use counter::{Counter, CounterOps};
 pub use histogram::{Histogram, HistogramOps};
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// Metric id.
@@ -15,8 +16,6 @@ pub type Id = u64;
 pub type Tag<'a> = (&'a str, &'a str);
 /// Metrics tags expresses as array of key-value pairs.
 pub type Tags<'a> = &'a [Tag<'a>];
-/// Pre-allocated metric consists of name, id and tags.
-pub type PreAllocatedMetric = (String, Id, Vec<(String, String)>);
 
 /// Returns empty tags.
 pub const fn empty_tags() -> Tags<'static> {
@@ -59,38 +58,62 @@ pub trait MetricsBackend: Sized {
     fn record(&mut self, id: Id, value: u64);
 }
 
+#[inline]
 fn new_counter_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.new_counter(name, tags)
 }
 
+#[inline]
 fn delete_counter_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.delete_counter(id)
 }
 
+#[inline]
 fn increment_counter_by_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, delta: usize) {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.increment_counter_by(id, delta)
 }
 
+#[inline]
 fn increment_counter_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
     increment_counter_by_raw::<T>(ptr, id, 1)
 }
 
+#[inline]
 fn new_histogram_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.new_histogram(name, tags)
 }
 
+#[inline]
 fn delete_histogram_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.delete_histogram(id)
 }
 
+#[inline]
 fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
     let backend = unsafe { &mut *(ptr as *mut T) };
     backend.record(id, value)
+}
+
+/// Pre-allocated metric consists of name, id and tags.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PreAllocatedMetric {
+    Counter(String, Id, Vec<(String, String)>),
+    Histogram(String, Id, Vec<(String, String)>),
+}
+
+impl PreAllocatedMetric {
+    pub fn counter(name: &str, id: Id, tags: &[Tag]) -> Self {
+        PreAllocatedMetric::Counter(
+            name.to_owned(),
+            id,
+            tags.iter().map(|tag| (tag.0.to_owned(), tag.1.to_owned())).collect(),
+        )
+    }
 }
 
 /// A trivial no-op backend for the "uninitialized" state.
@@ -148,20 +171,6 @@ struct Metrics {
     handle: AtomicRef<BackendHandle>,
 }
 
-// impl Deref for Metrics {
-//     type Target = BackendHandle;
-//
-//     fn deref(&self) -> &Self::Target {
-//         &self.handle
-//     }
-// }
-//
-// impl DerefMut for Metrics {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.handle
-//     }
-// }
-
 /// Initially set to no-op backend.
 static mut METRICS: Metrics = Metrics {
     handle: AtomicRef::new(&NO_OP_BACKEND_HANDLE),
@@ -174,7 +183,6 @@ pub fn set_backend(backend: impl MetricsBackend) {
     unsafe { &mut METRICS }
         .handle
         .store(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
-    // get_metrics_mut().handle.store(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
 }
 
 /// Get name of the active metrics backend.
@@ -200,30 +208,37 @@ pub struct BackendHandle {
 }
 
 impl BackendHandle {
+    #[inline]
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         (self.vtable.new_counter)(self.ptr, name, tags)
     }
 
+    #[inline]
     fn delete_counter(&mut self, id: Id) {
         (self.vtable.delete_counter)(self.ptr, id)
     }
 
+    #[inline]
     fn increment_counter_by(&mut self, id: Id, delta: usize) {
         (self.vtable.increment_counter_by)(self.ptr, id, delta)
     }
 
+    #[inline]
     fn increment_counter(&mut self, id: Id) {
         (self.vtable.increment_counter)(self.ptr, id)
     }
 
+    #[inline]
     fn new_histogram(&mut self, name: &str, tags: Tags) -> Id {
         (self.vtable.new_histogram)(self.ptr, name, tags)
     }
 
+    #[inline]
     fn delete_histogram(&mut self, id: Id) {
         (self.vtable.delete_histogram)(self.ptr, id)
     }
 
+    #[inline]
     fn record(&mut self, id: Id, value: u64) {
         (self.vtable.record)(self.ptr, id, value)
     }
@@ -240,10 +255,12 @@ impl<T> AtomicRef<T> {
         }
     }
 
+    #[inline]
     pub fn load(&self, order: Ordering) -> &mut T {
         unsafe { &mut *self.ptr.load(order) }
     }
 
+    #[inline]
     pub fn store(&self, new_ref: &T, order: Ordering) {
         self.ptr.store(new_ref as *const T as *mut T, order);
     }
@@ -256,20 +273,10 @@ mod access {
     use crate::{BackendHandle, METRICS};
     use std::sync::atomic::Ordering;
 
-    // #[allow(static_mut_refs)]
-    // pub fn get_metrics_mut() -> &'static mut Metrics {
-    //     unsafe { &mut METRICS }
-    // }
-
     #[allow(static_mut_refs)]
     pub fn get_metrics_mut() -> &'static mut BackendHandle {
         unsafe { &METRICS }.handle.load(Ordering::Acquire)
     }
-
-    // #[allow(static_mut_refs)]
-    // pub fn get_metrics() -> &'static Metrics {
-    //     unsafe { &METRICS }
-    // }
 
     #[allow(static_mut_refs)]
     pub fn get_metrics() -> &'static BackendHandle {

@@ -21,6 +21,7 @@ rust-version = "1.83.0"
 [workspace.dependencies]
 # workspace
 metricus = { path = "./metricus" }
+metricus_allocator = { path = "./metricus_allocator" }
 metricus_macros = { path = "./metricus_macros" }
 # external
 anyhow = "1.0.95"
@@ -47,4 +48,3 @@ dtoa = "1.0.9"
 lto = true
 codegen-units = 1
 debug = false
-

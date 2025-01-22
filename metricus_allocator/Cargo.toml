@@ -12,11 +12,7 @@ categories.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-# internal
 metricus = { workspace = true }
-metricus_macros = { workspace = true }
-
-# external
 jemallocator = { workspace = true, optional = true }
 mimalloc = { workspace = true, optional = true }
 

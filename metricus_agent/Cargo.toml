@@ -16,11 +16,8 @@ default = []
 rtrb = ["dep:rtrb"]
 
 [dependencies]
-# workspace
 metricus = { workspace = true }
 metricus_macros = { workspace = true }
-
-# external
 anyhow = { workspace = true }
 duration-str = { workspace = true }
 hdrhistogram = { workspace = true }
@@ -35,6 +32,7 @@ log = { workspace = true }
 dtoa = { workspace = true }
 
 [dev-dependencies]
+metricus_allocator = { workspace = true }
 criterion = { workspace = true }
 env_logger = "0.11.6"
 

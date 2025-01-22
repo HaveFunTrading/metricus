@@ -7,7 +7,7 @@ mod exporter;
 
 use crate::aggregator::MetricsAggregator;
 use crate::config::MetricsConfig;
-use metricus::{set_backend, Id, MetricsBackend, Tag, Tags};
+use metricus::{set_backend, Id, MetricsBackend, PreAllocatedMetric, Tag, Tags};
 #[cfg(feature = "rtrb")]
 use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]
@@ -58,8 +58,13 @@ impl MetricsAgent {
         #[cfg(not(feature = "rtrb"))]
         let (tx, rx) = std::sync::mpsc::sync_channel(config.event_channel_size);
         let exporter = config.exporter.try_into().unwrap();
+
+        let mut agent = MetricsAgent::new(tx);
+        for metric in config.pre_allocated_metrics {
+            agent.register_metric_with_id(metric);
+        }
         let _ = MetricsAggregator::start_on_thread(rx, exporter, config.flush_interval);
-        set_backend(MetricsAgent::new(tx));
+        set_backend(agent);
     }
 
     #[cfg(feature = "rtrb")]
@@ -98,6 +103,17 @@ impl MetricsAgent {
         let _ = self.tx.push(event);
         #[cfg(not(feature = "rtrb"))]
         let _ = self.tx.send(event);
+    }
+
+    fn register_metric_with_id(&mut self, metric: PreAllocatedMetric) {
+        match metric {
+            PreAllocatedMetric::Counter(name, id, tags) => {
+                self.send_event(Event::CounterCreate(id, name.to_string(), tags))
+            }
+            PreAllocatedMetric::Histogram(name, id, tags) => {
+                self.send_event(Event::HistogramCreate(id, name.to_string(), tags))
+            }
+        }
     }
 }
 

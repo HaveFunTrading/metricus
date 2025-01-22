@@ -17,12 +17,12 @@ rdtsc = ["dep:quanta"]
 
 [dependencies]
 quanta = { workspace = true, optional = true }
+serde = { version = "1.0.217", features = ["derive"] }
 
 [dev-dependencies]
-# workspace
 metricus_macros = { workspace = true }
-# external
 criterion = { workspace = true }
+
 
 [[bench]]
 name = "static_vs_manual"

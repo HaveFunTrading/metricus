@@ -2,7 +2,8 @@
 
 use metricus::{Counter, CounterOps, Id, PreAllocatedMetric};
 use std::alloc::{GlobalAlloc, Layout};
-use std::sync::{LazyLock, Mutex};
+use std::cell::Cell;
+use std::sync::LazyLock;
 
 const ALLOC_COUNTER_ID: Id = Id::MAX - 1004;
 const ALLOC_BYTES_COUNTER_ID: Id = Id::MAX - 1003;
@@ -16,7 +17,9 @@ const fn get_aligned_size(layout: Layout) -> usize {
 
 /// This allocator will use instrumentation to count the number of allocations and de-allocations
 /// occurring in the program. All calls to allocate (and free) memory are delegated to the concrete
-/// allocator (`std::alloc::System` by default).
+/// allocator (`std::alloc::System` by default). Once the allocator has been registered as
+/// `global_allocator` you need to call [enable_allocator_instrumentation] from each thread that
+/// wants to include its allocation and de-allocation metrics.
 ///
 /// ```no_run
 /// use metricus_allocator::CountingAllocator;
@@ -28,12 +31,12 @@ pub struct CountingAllocator;
 
 #[allow(static_mut_refs)]
 unsafe impl GlobalAlloc for CountingAllocator {
-    // `counter_with_id` creates a counter object without registering it.
-    // This is used for allocation and de-allocation counters, which are special cases that are initialised before the metrics backend is created.
-    // In that case, the `Counter` is created with the `NoOpBackend`, so we defer the registration of the counters until the actual backend is ready.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        COUNTERS.increment_alloc_count();
-        COUNTERS.increment_alloc_bytes(get_aligned_size(layout));
+        // provide metrics only if instrumentation has been enabled for this thread
+        if INSTRUMENTATION_ENABLED.get() {
+            COUNTERS.alloc_count.increment();
+            COUNTERS.alloc_bytes.increment_by(get_aligned_size(layout));
+        }
 
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
@@ -48,8 +51,11 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        COUNTERS.increment_dealloc_count();
-        COUNTERS.increment_dealloc_bytes(get_aligned_size(layout));
+        // provide metrics only if instrumentation has been enabled for this thread
+        if INSTRUMENTATION_ENABLED.get() {
+            COUNTERS.dealloc_count.increment();
+            COUNTERS.dealloc_bytes.increment_by(get_aligned_size(layout));
+        }
 
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
@@ -68,54 +74,73 @@ unsafe impl GlobalAlloc for CountingAllocator {
 
 impl CountingAllocator {
     /// Default counters to be used with the `CountingAllocator`.
-    pub fn counters() -> Vec<PreAllocatedMetric> {
+    pub fn metrics() -> Vec<PreAllocatedMetric> {
         vec![
-            ("global_allocator".into(), ALLOC_COUNTER_ID, vec![("fn_name".into(), "alloc".into())]),
-            ("global_allocator".into(), ALLOC_BYTES_COUNTER_ID, vec![("fn_name".into(), "alloc_bytes".into())]),
-            ("global_allocator".into(), DEALLOC_COUNTER_ID, vec![("fn_name".into(), "dealloc".into())]),
-            ("global_allocator".into(), DEALLOC_BYTES_COUNTER_ID, vec![("fn_name".into(), "dealloc_bytes".into())]),
+            PreAllocatedMetric::counter("global_allocator", ALLOC_COUNTER_ID, &[("fn_name", "alloc")]),
+            PreAllocatedMetric::counter("global_allocator", ALLOC_BYTES_COUNTER_ID, &[("fn_name", "alloc_bytes")]),
+            PreAllocatedMetric::counter("global_allocator", DEALLOC_COUNTER_ID, &[("fn_name", "dealloc")]),
+            PreAllocatedMetric::counter("global_allocator", DEALLOC_BYTES_COUNTER_ID, &[("fn_name", "dealloc_bytes")]),
         ]
     }
 }
 
+thread_local! {
+    static INSTRUMENTATION_ENABLED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// This should be called by a thread that wants to opt in to send allocation and de-allocation
+/// metrics. By default, per thread instrumentation is disabled. This is usually backend dependent
+/// as some backends can support sending metrics from multiple threads whereas others can be limited
+/// to the main thread only.
+///
+/// ## Examples
+///
+/// Enable instrumentation for the main thread.
+/// ```no_run
+///
+/// use metricus_allocator::enable_allocator_instrumentation;
+/// use metricus_allocator::CountingAllocator;
+///
+/// #[global_allocator]
+/// static GLOBAL: CountingAllocator = CountingAllocator;
+///
+/// fn main() {
+///     enable_allocator_instrumentation();
+/// }
+/// ```
+///
+/// Enable instrumentation for the background thread.
+/// ```no_run
+///
+/// use metricus_allocator::enable_allocator_instrumentation;
+/// use metricus_allocator::CountingAllocator;
+///
+/// #[global_allocator]
+/// static GLOBAL: CountingAllocator = CountingAllocator;
+///
+/// fn main() {
+///     std::thread::spawn(|| {
+///         enable_allocator_instrumentation();
+///     })
+/// }
+/// ```
+pub fn enable_allocator_instrumentation() {
+    INSTRUMENTATION_ENABLED.set(true);
+}
+
 static COUNTERS: LazyLock<Counters> = LazyLock::new(|| Counters {
+    // `counter_with_id` creates a counter object without registering it.
+    // This is used for allocation and de-allocation counters, which are special cases that are initialised before the metrics backend is created.
+    // In that case, the `Counter` is created with the `NoOpBackend`, so we defer the registration of the counters until the actual backend is ready.
     alloc_count: Counter::new_with_id(ALLOC_COUNTER_ID),
     alloc_bytes: Counter::new_with_id(ALLOC_BYTES_COUNTER_ID),
     dealloc_count: Counter::new_with_id(DEALLOC_COUNTER_ID),
-    dealloc_bytes: Counter::new_with_id(DEALLOC_COUNTER_ID),
-    inner: Mutex::new(()),
+    dealloc_bytes: Counter::new_with_id(DEALLOC_BYTES_COUNTER_ID),
 });
 
 struct Counters {
-    alloc_count: Counter,
-    alloc_bytes: Counter,
-    dealloc_count: Counter,
-    dealloc_bytes: Counter,
-    inner: Mutex<()>,
-}
-
-impl Counters {
-    #[inline]
-    fn increment_alloc_count(&self) {
-        let _guard = self.inner.lock().unwrap();
-        self.alloc_count.increment();
-    }
-
-    #[inline]
-    fn increment_alloc_bytes(&self, count: usize) {
-        let _guard = self.inner.lock().unwrap();
-        self.alloc_bytes.increment_by(count);
-    }
-
-    #[inline]
-    fn increment_dealloc_count(&self) {
-        let _guard = self.inner.lock().unwrap();
-        self.dealloc_count.increment();
-    }
-
-    #[inline]
-    fn increment_dealloc_bytes(&self, count: usize) {
-        let _guard = self.inner.lock().unwrap();
-        self.dealloc_bytes.increment_by(count);
-    }
+    pub alloc_count: Counter,
+    pub alloc_bytes: Counter,
+    pub dealloc_count: Counter,
+    pub dealloc_bytes: Counter,
 }
