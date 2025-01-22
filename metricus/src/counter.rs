@@ -3,6 +3,7 @@
 use crate::access::get_metrics_mut;
 use crate::{Id, Tags};
 use std::cell::{LazyCell, UnsafeCell};
+use std::sync::LazyLock;
 
 /// Provides methods to create a new counter, increment it, and
 /// increment it by a specified amount. It automatically deletes the counter
@@ -125,6 +126,16 @@ impl CounterOps for Counter {
 }
 
 impl CounterOps for LazyCell<UnsafeCell<Counter>> {
+    fn increment(&self) {
+        unsafe { &mut *self.get() }.increment()
+    }
+
+    fn increment_by(&self, delta: usize) {
+        unsafe { &mut *self.get() }.increment_by(delta)
+    }
+}
+
+impl CounterOps for LazyLock<UnsafeCell<Counter>> {
     fn increment(&self) {
         unsafe { &mut *self.get() }.increment()
     }

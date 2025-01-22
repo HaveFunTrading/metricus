@@ -1,35 +1,14 @@
 #![doc = include_str!("../README.md")]
 
 use metricus::{Counter, CounterOps, Id, PreAllocatedMetric};
-use metricus_macros::counter_with_id;
 use std::alloc::{GlobalAlloc, Layout};
-use std::cell::{LazyCell, UnsafeCell};
+use std::sync::{LazyLock, Mutex};
+use std::sync::atomic::AtomicPtr;
 
-const ALLOCATOR_MEASUREMENT_NAME: &str = "global_allocator";
 const ALLOC_COUNTER_ID: Id = Id::MAX - 1004;
-const ALLOC_TAGS: [(&str, &str); 1] = [("fn_name", "alloc")];
 const ALLOC_BYTES_COUNTER_ID: Id = Id::MAX - 1003;
-const ALLOC_BYTES_TAGS: [(&str, &str); 1] = [("fn_name", "alloc_bytes")];
 const DEALLOC_COUNTER_ID: Id = Id::MAX - 1002;
-const DEALLOC_TAGS: [(&str, &str); 1] = [("fn_name", "dealloc")];
 const DEALLOC_BYTES_COUNTER_ID: Id = Id::MAX - 1001;
-const DEALLOC_BYTES_TAGS: [(&str, &str); 1] = [("fn_name", "dealloc_bytes")];
-
-/// Default counters to be used with the `CountingAllocator`.
-pub const DEFAULT_ALLOCATOR_COUNTERS: [PreAllocatedMetric; 4] = [
-    (ALLOCATOR_MEASUREMENT_NAME, ALLOC_COUNTER_ID, &ALLOC_TAGS),
-    (ALLOCATOR_MEASUREMENT_NAME, ALLOC_BYTES_COUNTER_ID, &ALLOC_BYTES_TAGS),
-    (ALLOCATOR_MEASUREMENT_NAME, DEALLOC_COUNTER_ID, &DEALLOC_TAGS),
-    (ALLOCATOR_MEASUREMENT_NAME, DEALLOC_BYTES_COUNTER_ID, &DEALLOC_BYTES_TAGS),
-];
-
-const fn get_alloc_id() -> Id {
-    ALLOC_COUNTER_ID
-}
-
-const fn get_dealloc_id() -> Id {
-    DEALLOC_COUNTER_ID
-}
 
 const fn get_aligned_size(layout: Layout) -> usize {
     let alignment_mask: usize = layout.align() - 1;
@@ -53,19 +32,9 @@ unsafe impl GlobalAlloc for CountingAllocator {
     // `counter_with_id` creates a counter object without registering it.
     // This is used for allocation and de-allocation counters, which are special cases that are initialised before the metrics backend is created.
     // In that case, the `Counter` is created with the `NoOpBackend`, so we defer the registration of the counters until the actual backend is ready.
-
-    // FIXME has to be thread safe
-    // TODO can we attach thread id and name - so maybe thread_local counter
-
-    #[counter_with_id(id = "get_alloc_id")]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // in addition to the number of allocations count the number of bytes allocated
-        static mut BYTE_COUNTER: LazyCell<UnsafeCell<Counter>> =
-            LazyCell::new(|| UnsafeCell::new(Counter::new_with_id(ALLOC_BYTES_COUNTER_ID)));
-        #[allow(static_mut_refs)]
-        unsafe {
-            BYTE_COUNTER.increment_by(get_aligned_size(layout));
-        }
+        COUNTERS.increment_alloc_count();
+        COUNTERS.increment_alloc_bytes(get_aligned_size(layout));
 
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
@@ -79,15 +48,9 @@ unsafe impl GlobalAlloc for CountingAllocator {
         std::alloc::System.alloc(layout)
     }
 
-    #[counter_with_id(id = "get_dealloc_id")]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // in addition to the number of de-allocations count the number of bytes released
-        static mut BYTE_COUNTER: LazyCell<UnsafeCell<Counter>> =
-            LazyCell::new(|| UnsafeCell::new(Counter::new_with_id(DEALLOC_BYTES_COUNTER_ID)));
-        #[allow(static_mut_refs)]
-        unsafe {
-            BYTE_COUNTER.increment_by(get_aligned_size(layout));
-        }
+        COUNTERS.increment_dealloc_count();
+        COUNTERS.increment_dealloc_bytes(get_aligned_size(layout));
 
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
@@ -101,5 +64,59 @@ unsafe impl GlobalAlloc for CountingAllocator {
             return;
         }
         std::alloc::System.dealloc(ptr, layout)
+    }
+}
+
+impl CountingAllocator {
+    /// Default counters to be used with the `CountingAllocator`.
+    pub fn counters() -> Vec<PreAllocatedMetric> {
+        vec![
+            ("global_allocator".into(), ALLOC_COUNTER_ID, vec![("fn_name".into(), "alloc".into())]),
+            ("global_allocator".into(), ALLOC_BYTES_COUNTER_ID, vec![("fn_name".into(), "alloc_bytes".into())]),
+            ("global_allocator".into(), DEALLOC_COUNTER_ID, vec![("fn_name".into(), "dealloc".into())]),
+            ("global_allocator".into(), DEALLOC_BYTES_COUNTER_ID, vec![("fn_name".into(), "dealloc_bytes".into())]),
+        ]
+    }
+}
+
+static COUNTERS: LazyLock<Counters> = LazyLock::new(|| Counters {
+    alloc_count: Counter::new_with_id(ALLOC_COUNTER_ID),
+    alloc_bytes: Counter::new_with_id(ALLOC_BYTES_COUNTER_ID),
+    dealloc_count: Counter::new_with_id(DEALLOC_COUNTER_ID),
+    dealloc_bytes: Counter::new_with_id(DEALLOC_COUNTER_ID),
+    inner: Mutex::new(()),
+});
+
+struct Counters {
+    alloc_count: Counter,
+    alloc_bytes: Counter,
+    dealloc_count: Counter,
+    dealloc_bytes: Counter,
+    inner: Mutex<()>,
+}
+
+impl Counters {
+    #[inline]
+    fn increment_alloc_count(&self) {
+        let _guard = self.inner.lock().unwrap();
+        self.alloc_count.increment();
+    }
+
+    #[inline]
+    fn increment_alloc_bytes(&self, count: usize) {
+        let _guard = self.inner.lock().unwrap();
+        self.alloc_bytes.increment_by(count);
+    }
+
+    #[inline]
+    fn increment_dealloc_count(&self) {
+        let _guard = self.inner.lock().unwrap();
+        self.dealloc_count.increment();
+    }
+
+    #[inline]
+    fn increment_dealloc_bytes(&self, count: usize) {
+        let _guard = self.inner.lock().unwrap();
+        self.dealloc_bytes.increment_by(count);
     }
 }

@@ -1,6 +1,7 @@
 use crate::aggregator::Encoder;
 use crate::OwnedTags;
 use duration_str::deserialize_duration;
+use metricus::PreAllocatedMetric;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::HashMap;
@@ -25,11 +26,22 @@ pub struct MetricsConfig {
     #[serde(default = "get_default_event_channel_size")]
     pub event_channel_size: usize,
     pub exporter: ExporterSource,
+    pub pre_allocated_metrics: Vec<PreAllocatedMetric>,
 }
 
 impl MetricsConfig {
     pub fn from_file(path: &str) -> std::io::Result<MetricsConfig> {
         serde_yaml::from_reader(std::fs::File::open(path)?).map_err(std::io::Error::other)
+    }
+
+    pub fn with_pre_allocated_metrics<F>(self, pre_allocated_metrics: F) -> MetricsConfig
+    where
+        F: FnOnce() -> Vec<PreAllocatedMetric>,
+    {
+        MetricsConfig {
+            pre_allocated_metrics: [self.pre_allocated_metrics, pre_allocated_metrics()].concat(),
+            ..self
+        }
     }
 }
 

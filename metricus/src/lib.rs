@@ -3,9 +3,10 @@
 mod counter;
 mod histogram;
 
+use std::arch::x86_64::_mm_mfence;
 use crate::access::{get_metrics, get_metrics_mut};
 use std::ops::{Deref, DerefMut};
-
+use std::sync::atomic::{fence, Ordering};
 // re-exports
 pub use counter::{Counter, CounterOps};
 pub use histogram::{Histogram, HistogramOps};
@@ -17,7 +18,7 @@ pub type Tag<'a> = (&'a str, &'a str);
 /// Metrics tags expresses as array of key-value pairs.
 pub type Tags<'a> = &'a [Tag<'a>];
 /// Pre-allocated metric consists of name, id and tags.
-pub type PreAllocatedMetric<'a> = (&'a str, Id, Tags<'a>);
+pub type PreAllocatedMetric = (String, Id, Vec<(String, String)>);
 
 /// Returns empty tags.
 pub const fn empty_tags() -> Tags<'static> {
