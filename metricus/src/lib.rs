@@ -256,7 +256,12 @@ impl<T> AtomicRef<T> {
     }
 
     #[inline]
-    pub fn load(&self, order: Ordering) -> &mut T {
+    pub fn get(&self, order: Ordering) -> &T {
+        unsafe { &*self.ptr.load(order) }
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, order: Ordering) -> &mut T {
         unsafe { &mut *self.ptr.load(order) }
     }
 
@@ -275,11 +280,11 @@ mod access {
 
     #[allow(static_mut_refs)]
     pub fn get_metrics_mut() -> &'static mut BackendHandle {
-        unsafe { &METRICS }.handle.load(Ordering::Acquire)
+        unsafe { &mut METRICS }.handle.get_mut(Ordering::Acquire)
     }
 
     #[allow(static_mut_refs)]
     pub fn get_metrics() -> &'static BackendHandle {
-        unsafe { &METRICS }.handle.load(Ordering::Acquire)
+        unsafe { &METRICS }.handle.get(Ordering::Acquire)
     }
 }
