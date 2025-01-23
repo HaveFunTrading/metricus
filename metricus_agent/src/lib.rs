@@ -112,20 +112,28 @@ impl MetricsAgent {
         let _ = self.tx.try_send(event);
     }
 
+    fn enrich_with_counter_tags(&self, tags: &mut OwnedTags) {
+        tags.push(("type", "counter").to_owned_tag());
+        tags.extend(self.default_tags.clone());
+        tags.sort();
+        tags.dedup();
+    }
+
+    fn enrich_with_histogram_tags(&self, tags: &mut OwnedTags) {
+        tags.push(("type", "histogram").to_owned_tag());
+        tags.extend(self.default_tags.clone());
+        tags.sort();
+        tags.dedup();
+    }
+
     fn register_metric_with_id(&mut self, metric: PreAllocatedMetric) {
         match metric {
             PreAllocatedMetric::Counter { name, id, mut tags } => {
-                tags.push(("type", "counter").to_owned_tag());
-                tags.extend(self.default_tags.clone());
-                tags.sort_unstable();
-                tags.dedup();
+                self.enrich_with_counter_tags(&mut tags);
                 self.send_event(Event::CounterCreate(id, name.to_string(), tags))
             }
             PreAllocatedMetric::Histogram { name, id, mut tags } => {
-                tags.push(("type", "histogram").to_owned_tag());
-                tags.extend(self.default_tags.clone());
-                tags.sort_unstable();
-                tags.dedup();
+                self.enrich_with_histogram_tags(&mut tags);
                 self.send_event(Event::HistogramCreate(id, name.to_string(), tags))
             }
         }
@@ -139,10 +147,7 @@ impl Metrics for MetricsAgent {
 
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         let mut tags = tags.to_owned_tags();
-        tags.push(("type", "counter").to_owned_tag());
-        tags.extend(self.default_tags.clone());
-        tags.sort_unstable();
-        tags.dedup();
+        self.enrich_with_counter_tags(&mut tags);
         let id = self.assign_next_id(name, tags.clone());
         self.send_event(Event::CounterCreate(id, name.to_owned(), tags));
         id
@@ -159,10 +164,7 @@ impl Metrics for MetricsAgent {
 
     fn new_histogram(&mut self, name: &str, tags: Tags) -> Id {
         let mut tags = tags.to_owned_tags();
-        tags.push(("type", "histogram").to_owned_tag());
-        tags.extend(self.default_tags.clone());
-        tags.sort_unstable();
-        tags.dedup();
+        self.enrich_with_histogram_tags(&mut tags);
         let id = self.assign_next_id(name, tags.clone());
         self.send_event(Event::HistogramCreate(id, name.to_owned(), tags));
         id

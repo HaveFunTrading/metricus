@@ -26,25 +26,6 @@ pub const fn empty_tags() -> Tags<'static> {
 
 /// Common interface for metrics backend. Each new backend must implement this trait.
 pub trait Metrics {
-    fn into_handle(self) -> MetricsHandle
-    where
-        Self: Sized,
-    {
-        let name = self.name();
-        let ptr = Box::into_raw(Box::new(self)) as *mut _;
-
-        let vtable = MetricsVTable {
-            new_counter: new_counter_raw::<Self>,
-            delete_counter: delete_counter_raw::<Self>,
-            increment_counter: increment_counter_raw::<Self>,
-            increment_counter_by: increment_counter_by_raw::<Self>,
-            new_histogram: new_histogram_raw::<Self>,
-            delete_histogram: delete_histogram_raw::<Self>,
-            record: record_raw::<Self>,
-        };
-        MetricsHandle { ptr, vtable, name }
-    }
-
     fn name(&self) -> &'static str;
 
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id;
@@ -62,6 +43,28 @@ pub trait Metrics {
     fn delete_histogram(&mut self, id: Id);
 
     fn record(&mut self, id: Id, value: u64);
+}
+
+trait IntoHandle {
+    fn into_handle(self) -> MetricsHandle;
+}
+
+impl<T: Metrics + Sized> IntoHandle for T {
+    fn into_handle(self) -> MetricsHandle {
+        let name = self.name();
+        let ptr = Box::into_raw(Box::new(self)) as *mut _;
+
+        let vtable = MetricsVTable {
+            new_counter: new_counter_raw::<Self>,
+            delete_counter: delete_counter_raw::<Self>,
+            increment_counter: increment_counter_raw::<Self>,
+            increment_counter_by: increment_counter_by_raw::<Self>,
+            new_histogram: new_histogram_raw::<Self>,
+            delete_histogram: delete_histogram_raw::<Self>,
+            record: record_raw::<Self>,
+        };
+        MetricsHandle { ptr, vtable, name }
+    }
 }
 
 #[inline]
