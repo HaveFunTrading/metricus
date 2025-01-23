@@ -13,6 +13,7 @@ use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]
 use std::sync::mpsc::SyncSender;
 
+use log::info;
 use std::collections::HashMap;
 
 type OwnedTag = (String, String);
@@ -43,6 +44,7 @@ pub struct MetricsAgent {
     tx: Producer<Event>,
     #[cfg(not(feature = "rtrb"))]
     tx: SyncSender<Event>,
+    default_tags: OwnedTags,
     next_id: Id,
     metric_key_to_id: HashMap<MetricKey, Id>,
 }
@@ -53,13 +55,16 @@ impl MetricsAgent {
     }
 
     pub fn init_with_config(config: MetricsConfig) {
+        info!("Initializing metrics agent with config:\n{}", serde_yaml::to_string(&config).unwrap());
+        // info!("Initializing metrics agent with config:\n{}", serde_json::to_string_pretty(&config).unwrap());
+
         #[cfg(feature = "rtrb")]
         let (tx, rx) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(not(feature = "rtrb"))]
         let (tx, rx) = std::sync::mpsc::sync_channel(config.event_channel_size);
         let exporter = config.exporter.try_into().unwrap();
 
-        let mut agent = MetricsAgent::new(tx);
+        let mut agent = MetricsAgent::new(tx, config.default_tags);
         for metric in config.pre_allocated_metrics {
             agent.register_metric_with_id(metric);
         }
@@ -68,18 +73,20 @@ impl MetricsAgent {
     }
 
     #[cfg(feature = "rtrb")]
-    fn new(tx: Producer<Event>) -> Self {
+    fn new(tx: Producer<Event>, default_tags: OwnedTags) -> Self {
         Self {
             tx,
+            default_tags,
             next_id: 0,
             metric_key_to_id: Default::default(),
         }
     }
 
     #[cfg(not(feature = "rtrb"))]
-    fn new(tx: SyncSender<Event>) -> Self {
+    fn new(tx: SyncSender<Event>, default_tags: OwnedTags) -> Self {
         Self {
             tx,
+            default_tags,
             next_id: 0,
             metric_key_to_id: Default::default(),
         }
@@ -107,10 +114,10 @@ impl MetricsAgent {
 
     fn register_metric_with_id(&mut self, metric: PreAllocatedMetric) {
         match metric {
-            PreAllocatedMetric::Counter(name, id, tags) => {
+            PreAllocatedMetric::Counter { name, id, tags } => {
                 self.send_event(Event::CounterCreate(id, name.to_string(), tags))
             }
-            PreAllocatedMetric::Histogram(name, id, tags) => {
+            PreAllocatedMetric::Histogram { name, id, tags } => {
                 self.send_event(Event::HistogramCreate(id, name.to_string(), tags))
             }
         }
@@ -125,6 +132,7 @@ impl MetricsBackend for MetricsAgent {
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         let mut tags = tags.to_owned_tags();
         tags.push(("type", "counter").to_owned_tag());
+        tags.extend(self.default_tags.clone());
         tags.sort_unstable();
         tags.dedup();
         let id = self.assign_next_id(name, tags.clone());
@@ -144,6 +152,7 @@ impl MetricsBackend for MetricsAgent {
     fn new_histogram(&mut self, name: &str, tags: Tags) -> Id {
         let mut tags = tags.to_owned_tags();
         tags.push(("type", "histogram").to_owned_tag());
+        tags.extend(self.default_tags.clone());
         tags.sort_unstable();
         tags.dedup();
         let id = self.assign_next_id(name, tags.clone());

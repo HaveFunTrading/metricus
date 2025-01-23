@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
         config:
             host: 127.0.0.1
             port: 8777
-            encoder: lineprotocol
+            encoder: line_protocol
     "#;
 
     enable_allocator_instrumentation();
@@ -31,7 +31,12 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     MetricsAgent::init_with_config(
-        MetricsConfig::from_str(CONFIG)?.with_pre_allocated_metrics(CountingAllocator::metrics),
+        MetricsConfig::from_str(CONFIG)?
+            .with_pre_allocated_metrics(CountingAllocator::metrics)
+            .with_default_tags(vec![
+                ("env".to_owned(), "prod".to_owned()),
+                ("host".to_owned(), "127.0.0.1".to_owned()),
+            ]),
     );
 
     loop {

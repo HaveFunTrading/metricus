@@ -15,10 +15,10 @@ fn baz() {}
 fn main() -> anyhow::Result<()> {
     const CONFIG: &str = r#"
     exporter:
-        type: unixsocket
+        type: unix_socket
         config:
             path: /tmp/metrics-agent.sock
-            encoder: lineprotocol
+            encoder: linep_rotocol
     "#;
 
     env_logger::init();

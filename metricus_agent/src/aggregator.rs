@@ -116,6 +116,9 @@ impl MetricsAggregator {
     fn flush_metrics(&mut self, timestamp: u64) -> std::io::Result<()> {
         self.exporter.publish_counters(&self.counters, timestamp)?;
         self.exporter.publish_histograms(&self.histograms, timestamp)?;
+        self.histograms
+            .iter_mut()
+            .for_each(|(_, histogram)| histogram.inner.clear());
         Ok(())
     }
 }
@@ -167,7 +170,7 @@ impl MetaData {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum Encoder {
     LineProtocol,
     Json,

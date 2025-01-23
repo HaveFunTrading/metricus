@@ -101,18 +101,36 @@ fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
 
 /// Pre-allocated metric consists of name, id and tags.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+// #[serde(tag = "type")]
 pub enum PreAllocatedMetric {
-    Counter(String, Id, Vec<(String, String)>),
-    Histogram(String, Id, Vec<(String, String)>),
+    Counter {
+        name: String,
+        id: Id,
+        tags: Vec<(String, String)>,
+    },
+    Histogram {
+        name: String,
+        id: Id,
+        tags: Vec<(String, String)>,
+    },
 }
 
 impl PreAllocatedMetric {
     pub fn counter(name: &str, id: Id, tags: &[Tag]) -> Self {
-        PreAllocatedMetric::Counter(
-            name.to_owned(),
+        PreAllocatedMetric::Counter {
+            name: name.to_owned(),
             id,
-            tags.iter().map(|tag| (tag.0.to_owned(), tag.1.to_owned())).collect(),
-        )
+            tags: tags.iter().map(|tag| (tag.0.to_owned(), tag.1.to_owned())).collect(),
+        }
+    }
+
+    pub fn histogram(name: &str, id: Id, tags: &[Tag]) -> Self {
+        PreAllocatedMetric::Histogram {
+            name: name.to_owned(),
+            id,
+            tags: tags.iter().map(|tag| (tag.0.to_owned(), tag.1.to_owned())).collect(),
+        }
     }
 }
 

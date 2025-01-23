@@ -139,8 +139,8 @@ static COUNTERS: LazyLock<Counters> = LazyLock::new(|| Counters {
 });
 
 struct Counters {
-    pub alloc_count: Counter,
-    pub alloc_bytes: Counter,
-    pub dealloc_count: Counter,
-    pub dealloc_bytes: Counter,
+    alloc_count: Counter,
+    alloc_bytes: Counter,
+    dealloc_count: Counter,
+    dealloc_bytes: Counter,
 }

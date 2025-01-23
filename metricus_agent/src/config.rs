@@ -3,7 +3,7 @@ use crate::OwnedTags;
 use duration_str::deserialize_duration;
 use metricus::PreAllocatedMetric;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{serde_as, EnumMap};
 use std::collections::HashMap;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
@@ -28,12 +28,20 @@ pub struct MetricsConfig {
     pub event_channel_size: usize,
     pub exporter: ExporterSource,
     #[serde(default)]
+    #[serde_as(as = "EnumMap")]
     pub pre_allocated_metrics: Vec<PreAllocatedMetric>,
 }
 
 impl MetricsConfig {
     pub fn from_file(path: impl AsRef<Path>) -> std::io::Result<MetricsConfig> {
         serde_yaml::from_reader(std::fs::File::open(path)?).map_err(std::io::Error::other)
+    }
+
+    pub fn with_default_tags(self, default_tags: OwnedTags) -> MetricsConfig {
+        MetricsConfig {
+            default_tags: [self.default_tags, default_tags].concat(),
+            ..self
+        }
     }
 
     pub fn with_pre_allocated_metrics<F>(self, pre_allocated_metrics: F) -> MetricsConfig
@@ -64,14 +72,14 @@ const fn get_default_flush_interval() -> Duration {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum Format {
     LineProtocol,
     Json,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[serde(tag = "type", content = "config")]
 pub enum ExporterSource {
     #[default]
