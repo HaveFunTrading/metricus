@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     MetricsAgent::init_with_config(
         MetricsConfig::from_file("metricus_agent/examples/config.yml")?
             .with_pre_allocated_metrics(CountingAllocator::metrics),
-    );
+    )?;
 
     loop {
         foo();

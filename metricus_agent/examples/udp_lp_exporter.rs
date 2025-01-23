@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
                 ("env".to_owned(), "prod".to_owned()),
                 ("host".to_owned(), "127.0.0.1".to_owned()),
             ]),
-    );
+    )?;
 
     loop {
         foo();

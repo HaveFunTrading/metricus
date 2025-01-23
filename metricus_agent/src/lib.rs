@@ -15,6 +15,9 @@ use std::sync::mpsc::SyncSender;
 
 use std::collections::HashMap;
 
+// re-exports
+pub use error::{Error, Result};
+
 type OwnedTag = (String, String);
 type OwnedTags = Vec<OwnedTag>;
 
@@ -49,16 +52,16 @@ pub struct MetricsAgent {
 }
 
 impl MetricsAgent {
-    pub fn init() {
-        Self::init_with_config(MetricsConfig::default());
+    pub fn init() -> Result<()> {
+        Self::init_with_config(MetricsConfig::default())
     }
 
-    pub fn init_with_config(config: MetricsConfig) {
+    pub fn init_with_config(config: MetricsConfig) -> Result<()> {
         #[cfg(feature = "rtrb")]
         let (tx, rx) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(not(feature = "rtrb"))]
         let (tx, rx) = std::sync::mpsc::sync_channel(config.event_channel_size);
-        let exporter = config.exporter.try_into().unwrap();
+        let exporter = config.exporter.try_into()?;
 
         let mut agent = MetricsAgent::new(tx, config.default_tags);
         for metric in config.pre_allocated_metrics {
@@ -66,6 +69,7 @@ impl MetricsAgent {
         }
         let _ = MetricsAggregator::start_on_thread(rx, exporter, config.flush_interval);
         set_backend(agent);
+        Ok(())
     }
 
     #[cfg(feature = "rtrb")]
@@ -105,7 +109,7 @@ impl MetricsAgent {
         #[cfg(feature = "rtrb")]
         let _ = self.tx.push(event);
         #[cfg(not(feature = "rtrb"))]
-        let _ = self.tx.send(event);
+        let _ = self.tx.try_send(event);
     }
 
     fn register_metric_with_id(&mut self, metric: PreAllocatedMetric) {

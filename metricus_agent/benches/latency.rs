@@ -10,7 +10,7 @@ fn benchmark_static_counter(c: &mut Criterion) {
         black_box(arg);
     }
 
-    MetricsAgent::init();
+    MetricsAgent::init().unwrap();
 
     c.benchmark_group("metrics").bench_function("static_counter", |b| {
         b.iter(|| {
@@ -25,7 +25,7 @@ fn benchmark_static_histogram(c: &mut Criterion) {
         black_box(arg);
     }
 
-    MetricsAgent::init();
+    MetricsAgent::init().unwrap();
 
     c.benchmark_group("metrics").bench_function("static_histogram", |b| {
         b.iter(|| {
@@ -46,7 +46,7 @@ fn benchmark_manual_counter(c: &mut Criterion) {
         }
     }
 
-    MetricsAgent::init();
+    MetricsAgent::init().unwrap();
 
     let counter_holder = CounterHolder {
         counter: Counter::new("counters", &[("fn_name", "foo"), ("key1", "value1"), ("key2", "value2")]),
@@ -71,7 +71,7 @@ fn benchmark_manual_histogram(c: &mut Criterion) {
         }
     }
 
-    MetricsAgent::init();
+    MetricsAgent::init().unwrap();
 
     let histogram_holder = HistogramHolder {
         histogram: Histogram::new("latencies", &[("fn_name", "foo"), ("key1", "value1"), ("key2", "value2")]),

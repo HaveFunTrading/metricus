@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
 
     env_logger::init();
 
-    MetricsAgent::init_with_config(MetricsConfig::from_str(CONFIG)?);
+    MetricsAgent::init_with_config(MetricsConfig::from_str(CONFIG)?)?;
 
     loop {
         foo();
