@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use metricus::{set_backend, Counter, HistogramOps, Id, MetricsBackend, Tags};
+use metricus::{set_metrics, Counter, HistogramOps, Id, Metrics, Tags};
 use metricus::{CounterOps, Histogram};
 use metricus_macros::{counter, span};
 
@@ -14,7 +14,7 @@ impl CustomBackend {
     }
 }
 
-impl MetricsBackend for CustomBackend {
+impl Metrics for CustomBackend {
     fn name(&self) -> &'static str {
         "custom"
     }
@@ -54,7 +54,7 @@ fn benchmark_static_counter(c: &mut Criterion) {
         black_box(arg);
     }
 
-    set_backend(CustomBackend::new());
+    set_metrics(CustomBackend::new());
 
     c.benchmark_group("metrics").bench_function("static_counter", |b| {
         b.iter(|| {
@@ -69,7 +69,7 @@ fn benchmark_static_histogram(c: &mut Criterion) {
         black_box(arg);
     }
 
-    set_backend(CustomBackend::new());
+    set_metrics(CustomBackend::new());
 
     c.benchmark_group("metrics").bench_function("static_histogram", |b| {
         b.iter(|| {
@@ -90,7 +90,7 @@ fn benchmark_manual_counter(c: &mut Criterion) {
         }
     }
 
-    set_backend(CustomBackend::new());
+    set_metrics(CustomBackend::new());
 
     let counter_holder = CounterHolder {
         counter: Counter::new("counters", &[("fn_name", "foo"), ("key1", "value1"), ("key2", "value2")]),
@@ -115,7 +115,7 @@ fn benchmark_manual_histogram(c: &mut Criterion) {
         }
     }
 
-    set_backend(CustomBackend::new());
+    set_metrics(CustomBackend::new());
 
     let histogram_holder = HistogramHolder {
         histogram: Histogram::new("latencies", &[("fn_name", "foo"), ("key1", "value1"), ("key2", "value2")]),

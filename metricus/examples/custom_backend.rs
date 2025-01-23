@@ -1,4 +1,4 @@
-use metricus::{get_backend_name, set_backend, Id, MetricsBackend, Tags};
+use metricus::{get_metrics_backend_name, set_metrics, Id, Metrics, Tags};
 use metricus_macros::{counter, span};
 
 #[derive(Debug)]
@@ -12,7 +12,7 @@ impl CustomBackend {
     }
 }
 
-impl MetricsBackend for CustomBackend {
+impl Metrics for CustomBackend {
     fn name(&self) -> &'static str {
         "custom"
     }
@@ -56,8 +56,8 @@ fn bar() {}
 fn baz() {}
 
 fn main() {
-    set_backend(CustomBackend::new());
-    assert_eq!("custom", get_backend_name());
+    set_metrics(CustomBackend::new());
+    assert_eq!("custom", get_metrics_backend_name());
 
     foo();
     foo();

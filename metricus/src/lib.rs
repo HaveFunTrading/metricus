@@ -25,14 +25,15 @@ pub const fn empty_tags() -> Tags<'static> {
 }
 
 /// Common interface for metrics backend. Each new backend must implement this trait.
-pub trait MetricsBackend {
-    fn into_backend_handle(self) -> BackendHandle
+pub trait Metrics {
+    fn into_handle(self) -> MetricsHandle
     where
         Self: Sized,
     {
         let name = self.name();
         let ptr = Box::into_raw(Box::new(self)) as *mut _;
-        let vtable = BackendVTable {
+
+        let vtable = MetricsVTable {
             new_counter: new_counter_raw::<Self>,
             delete_counter: delete_counter_raw::<Self>,
             increment_counter: increment_counter_raw::<Self>,
@@ -41,7 +42,7 @@ pub trait MetricsBackend {
             delete_histogram: delete_histogram_raw::<Self>,
             record: record_raw::<Self>,
         };
-        BackendHandle { ptr, vtable, name }
+        MetricsHandle { ptr, vtable, name }
     }
 
     fn name(&self) -> &'static str;
@@ -64,44 +65,44 @@ pub trait MetricsBackend {
 }
 
 #[inline]
-fn new_counter_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.new_counter(name, tags)
+fn new_counter_raw<T: Metrics>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.new_counter(name, tags)
 }
 
 #[inline]
-fn delete_counter_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.delete_counter(id)
+fn delete_counter_raw<T: Metrics>(ptr: *mut u8, id: Id) {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.delete_counter(id)
 }
 
 #[inline]
-fn increment_counter_by_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, delta: usize) {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.increment_counter_by(id, delta)
+fn increment_counter_by_raw<T: Metrics>(ptr: *mut u8, id: Id, delta: usize) {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.increment_counter_by(id, delta)
 }
 
 #[inline]
-fn increment_counter_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
+fn increment_counter_raw<T: Metrics>(ptr: *mut u8, id: Id) {
     increment_counter_by_raw::<T>(ptr, id, 1)
 }
 
 #[inline]
-fn new_histogram_raw<T: MetricsBackend>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.new_histogram(name, tags)
+fn new_histogram_raw<T: Metrics>(ptr: *mut u8, name: &str, tags: Tags) -> Id {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.new_histogram(name, tags)
 }
 
 #[inline]
-fn delete_histogram_raw<T: MetricsBackend>(ptr: *mut u8, id: Id) {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.delete_histogram(id)
+fn delete_histogram_raw<T: Metrics>(ptr: *mut u8, id: Id) {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.delete_histogram(id)
 }
 
 #[inline]
-fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
-    let backend = unsafe { &mut *(ptr as *mut T) };
-    backend.record(id, value)
+fn record_raw<T: Metrics>(ptr: *mut u8, id: Id, value: u64) {
+    let metrics = unsafe { &mut *(ptr as *mut T) };
+    metrics.record(id, value)
 }
 
 /// Pre-allocated metric consists of name, id and tags.
@@ -145,9 +146,9 @@ impl PreAllocatedMetric {
 }
 
 /// A trivial no-op backend for the "uninitialized" state.
-struct NoOpBackend;
+struct NoOpMetrics;
 
-impl MetricsBackend for NoOpBackend {
+impl Metrics for NoOpMetrics {
     fn name(&self) -> &'static str {
         "no-op"
     }
@@ -177,48 +178,48 @@ impl MetricsBackend for NoOpBackend {
     }
 }
 
-const NO_OP_BACKEND: NoOpBackend = NoOpBackend;
+const NO_OP_METRICS: NoOpMetrics = NoOpMetrics;
 
-const NO_OP_BACKEND_VTABLE: BackendVTable = BackendVTable {
-    new_counter: new_counter_raw::<NoOpBackend>,
-    delete_counter: delete_counter_raw::<NoOpBackend>,
-    increment_counter: increment_counter_raw::<NoOpBackend>,
-    increment_counter_by: increment_counter_by_raw::<NoOpBackend>,
-    new_histogram: new_histogram_raw::<NoOpBackend>,
-    delete_histogram: delete_histogram_raw::<NoOpBackend>,
-    record: record_raw::<NoOpBackend>,
+const NO_OP_METRICS_VTABLE: MetricsVTable = MetricsVTable {
+    new_counter: new_counter_raw::<NoOpMetrics>,
+    delete_counter: delete_counter_raw::<NoOpMetrics>,
+    increment_counter: increment_counter_raw::<NoOpMetrics>,
+    increment_counter_by: increment_counter_by_raw::<NoOpMetrics>,
+    new_histogram: new_histogram_raw::<NoOpMetrics>,
+    delete_histogram: delete_histogram_raw::<NoOpMetrics>,
+    record: record_raw::<NoOpMetrics>,
 };
 
-const NO_OP_BACKEND_HANDLE: BackendHandle = BackendHandle {
-    ptr: &NO_OP_BACKEND as *const NoOpBackend as *mut u8,
-    vtable: NO_OP_BACKEND_VTABLE,
+const NO_OP_METRICS_HANDLE: MetricsHandle = MetricsHandle {
+    ptr: &NO_OP_METRICS as *const NoOpMetrics as *mut u8,
+    vtable: NO_OP_METRICS_VTABLE,
     name: "no-op",
 };
 
-struct Metrics {
-    handle: AtomicRef<BackendHandle>,
+struct MetricsHolder {
+    handle: AtomicRef<MetricsHandle>,
 }
 
 /// Initially set to no-op backend.
-static mut METRICS: Metrics = Metrics {
-    handle: AtomicRef::new(&NO_OP_BACKEND_HANDLE),
+static mut METRICS: MetricsHolder = MetricsHolder {
+    handle: AtomicRef::new(&NO_OP_METRICS_HANDLE),
 };
 
 /// Set a new metrics backend. This should be called as early as possible. Otherwise,
-/// all metrics calls will delegate to the `NoOpBackend`.
-pub fn set_backend(backend: impl MetricsBackend) {
+/// all metrics calls will delegate to the `NoOpMetrics`.
+pub fn set_metrics(metrics: impl Metrics) {
     #[allow(static_mut_refs)]
     unsafe { &mut METRICS }
         .handle
-        .set(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
+        .set(Box::leak(Box::new(metrics.into_handle())), Ordering::SeqCst);
 }
 
 /// Get name of the active metrics backend.
-pub fn get_backend_name() -> &'static str {
+pub fn get_metrics_backend_name() -> &'static str {
     get_metrics().name
 }
 
-struct BackendVTable {
+struct MetricsVTable {
     new_counter: fn(*mut u8, &str, Tags) -> Id,
     delete_counter: fn(*mut u8, Id),
     increment_counter: fn(*mut u8, Id),
@@ -229,13 +230,13 @@ struct BackendVTable {
 }
 
 /// Metrics backend handle.
-pub struct BackendHandle {
+pub struct MetricsHandle {
     ptr: *mut u8,
-    vtable: BackendVTable,
+    vtable: MetricsVTable,
     name: &'static str,
 }
 
-impl BackendHandle {
+impl MetricsHandle {
     #[inline]
     fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
         (self.vtable.new_counter)(self.ptr, name, tags)
@@ -299,20 +300,17 @@ impl<T> AtomicRef<T> {
     }
 }
 
-unsafe impl<T> Send for AtomicRef<T> {}
-unsafe impl<T> Sync for AtomicRef<T> {}
-
 mod access {
-    use crate::{BackendHandle, METRICS};
+    use crate::{MetricsHandle, METRICS};
     use std::sync::atomic::Ordering;
 
     #[allow(static_mut_refs)]
-    pub fn get_metrics_mut() -> &'static mut BackendHandle {
+    pub fn get_metrics_mut() -> &'static mut MetricsHandle {
         unsafe { &mut METRICS }.handle.get_mut(Ordering::Acquire)
     }
 
     #[allow(static_mut_refs)]
-    pub fn get_metrics() -> &'static BackendHandle {
+    pub fn get_metrics() -> &'static MetricsHandle {
         unsafe { &METRICS }.handle.get(Ordering::Acquire)
     }
 }

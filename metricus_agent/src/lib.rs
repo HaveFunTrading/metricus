@@ -7,7 +7,7 @@ mod exporter;
 
 use crate::aggregator::MetricsAggregator;
 use crate::config::MetricsConfig;
-use metricus::{set_backend, Id, MetricsBackend, PreAllocatedMetric, Tag, Tags};
+use metricus::{set_metrics, Id, Metrics, PreAllocatedMetric, Tag, Tags};
 #[cfg(feature = "rtrb")]
 use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]
@@ -68,7 +68,7 @@ impl MetricsAgent {
             agent.register_metric_with_id(metric);
         }
         let _ = MetricsAggregator::start_on_thread(rx, exporter, config.flush_interval);
-        set_backend(agent);
+        set_metrics(agent);
         Ok(())
     }
 
@@ -132,7 +132,7 @@ impl MetricsAgent {
     }
 }
 
-impl MetricsBackend for MetricsAgent {
+impl Metrics for MetricsAgent {
     fn name(&self) -> &'static str {
         "metrics-agent"
     }
