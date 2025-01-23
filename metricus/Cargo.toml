@@ -28,3 +28,9 @@ criterion = { workspace = true }
 name = "static_vs_manual"
 path = "benches/static_vs_manual.rs"
 harness = false
+
+[[bench]]
+name = "dispatch"
+path = "benches/dispatch.rs"
+harness = false
+

@@ -25,8 +25,11 @@ pub const fn empty_tags() -> Tags<'static> {
 }
 
 /// Common interface for metrics backend. Each new backend must implement this trait.
-pub trait MetricsBackend: Sized {
-    fn into_backend_handle(self) -> BackendHandle {
+pub trait MetricsBackend {
+    fn into_backend_handle(self) -> BackendHandle
+    where
+        Self: Sized,
+    {
         let name = self.name();
         let ptr = Box::into_raw(Box::new(self)) as *mut _;
         let vtable = BackendVTable {
@@ -207,7 +210,7 @@ pub fn set_backend(backend: impl MetricsBackend) {
     #[allow(static_mut_refs)]
     unsafe { &mut METRICS }
         .handle
-        .store(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
+        .set(Box::leak(Box::new(backend.into_backend_handle())), Ordering::SeqCst);
 }
 
 /// Get name of the active metrics backend.
@@ -291,7 +294,7 @@ impl<T> AtomicRef<T> {
     }
 
     #[inline]
-    pub fn store(&self, new_ref: &T, order: Ordering) {
+    pub fn set(&self, new_ref: &T, order: Ordering) {
         self.ptr.store(new_ref as *const T as *mut T, order);
     }
 }
