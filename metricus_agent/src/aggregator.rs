@@ -1,5 +1,6 @@
+use crate::config::MetricsConfig;
 use crate::exporter::Exporter;
-use crate::{Event, OwnedTags};
+use crate::{error, Error, Event, OwnedTags};
 use metricus::Id;
 #[cfg(feature = "rtrb")]
 use rtrb::Consumer;
@@ -11,14 +12,17 @@ use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+type Counters = HashMap<Id, Counter>;
+type Histograms = HashMap<Id, Histogram>;
+
 pub struct MetricsAggregator {
     #[cfg(feature = "rtrb")]
     rx: Consumer<Event>,
     #[cfg(not(feature = "rtrb"))]
     rx: Receiver<Event>,
     exporter: Exporter,
-    counters: HashMap<Id, Counter>,
-    histograms: HashMap<Id, Histogram>,
+    counters: Counters,
+    histograms: Histograms,
     next_flush_time_ns: u64,
     flush_interval_ns: u64,
 }
@@ -43,49 +47,52 @@ impl MetricsAggregator {
     pub fn start_on_thread(
         #[cfg(feature = "rtrb")] rx: Consumer<Event>,
         #[cfg(not(feature = "rtrb"))] rx: Receiver<Event>,
-        exporter: Exporter,
-        flush_interval: Duration,
-    ) -> JoinHandle<Result<(), &'static str>> {
+        config: MetricsConfig,
+    ) -> JoinHandle<error::Result<()>> {
         std::thread::spawn(move || {
-            let mut aggregator = MetricsAggregator::new(rx, exporter, flush_interval);
+            let exporter = config.exporter.try_into()?;
+            let mut aggregator = MetricsAggregator::new(rx, exporter, config.flush_interval);
             loop {
-                aggregator.poll();
+                aggregator.poll()?;
                 std::thread::sleep(Duration::from_millis(1));
             }
         })
     }
 
     #[inline]
-    fn poll(&mut self) {
-        self.process_events();
+    fn poll(&mut self) -> crate::Result<()> {
+        self.process_events()?;
         let now = current_time_ns();
         if now > self.next_flush_time_ns {
-            self.flush_metrics(now).unwrap(); // TODO error handling
+            self.flush_metrics(now)?;
             self.next_flush_time_ns = now + self.flush_interval_ns;
         }
+        Ok(())
     }
 
     #[cfg(feature = "rtrb")]
     #[inline]
-    fn process_events(&mut self) {
+    fn process_events(&mut self) -> crate::Result<()> {
         let available = self.rx.slots();
         if let Ok(chunk) = self.rx.read_chunk(available) {
             for event in chunk {
-                Self::handle_event(&mut self.counters, &mut self.histograms, event);
+                Self::handle_event(&mut self.counters, &mut self.histograms, event)?;
             }
         }
+        Ok(())
     }
 
     #[cfg(not(feature = "rtrb"))]
     #[inline]
-    fn process_events(&mut self) {
+    fn process_events(&mut self) -> crate::Result<()> {
         for event in self.rx.try_iter() {
-            Self::handle_event(&mut self.counters, &mut self.histograms, event);
+            Self::handle_event(&mut self.counters, &mut self.histograms, event)?;
         }
+        Ok(())
     }
 
     #[inline]
-    fn handle_event(counters: &mut HashMap<Id, Counter>, histograms: &mut HashMap<Id, Histogram>, event: Event) {
+    fn handle_event(counters: &mut Counters, histograms: &mut Histograms, event: Event) -> crate::Result<()> {
         match event {
             Event::CounterCreate(id, name, tags) => {
                 counters.entry(id).or_insert_with(|| Counter::new(name, tags));
@@ -106,16 +113,18 @@ impl MetricsAggregator {
             }
             Event::HistogramRecord(id, value) => {
                 if let Some(histogram) = histograms.get_mut(&id) {
-                    histogram.inner.record(value).unwrap();
+                    histogram.inner.record(value).map_err(Error::other)?;
                 }
             }
         }
+        Ok(())
     }
 
     #[inline]
-    fn flush_metrics(&mut self, timestamp: u64) -> std::io::Result<()> {
+    fn flush_metrics(&mut self, timestamp: u64) -> crate::Result<()> {
         self.exporter.publish_counters(&self.counters, timestamp)?;
         self.exporter.publish_histograms(&self.histograms, timestamp)?;
+        // clear histograms
         self.histograms
             .iter_mut()
             .for_each(|(_, histogram)| histogram.inner.clear());
@@ -151,7 +160,7 @@ pub struct Histogram {
 impl Histogram {
     fn new(name: String, tags: OwnedTags) -> Self {
         Self {
-            inner: hdrhistogram::Histogram::<u64>::new(3).unwrap(),
+            inner: hdrhistogram::Histogram::<u64>::new(3).unwrap(), // will never fail
             meta_data: MetaData::new(name, tags),
         }
     }

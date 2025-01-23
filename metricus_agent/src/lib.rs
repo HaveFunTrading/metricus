@@ -13,10 +13,10 @@ use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]
 use std::sync::mpsc::SyncSender;
 
-use std::collections::HashMap;
-
 // re-exports
 pub use error::{Error, Result};
+use std::collections::HashMap;
+use std::thread::ThreadId;
 
 type OwnedTag = (String, String);
 type OwnedTags = Vec<OwnedTag>;
@@ -52,24 +52,28 @@ pub struct MetricsAgent {
 }
 
 impl MetricsAgent {
-    pub fn init() -> Result<()> {
+    /// Init agent with default config and return metrics aggregator background `ThreadId`.
+    pub fn init() -> Result<ThreadId> {
         Self::init_with_config(MetricsConfig::default())
     }
 
-    pub fn init_with_config(config: MetricsConfig) -> Result<()> {
+    /// Init agent with user supplied config and return metrics aggregator background `ThreadId`.
+    pub fn init_with_config(config: MetricsConfig) -> Result<ThreadId> {
         #[cfg(feature = "rtrb")]
         let (tx, rx) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(not(feature = "rtrb"))]
         let (tx, rx) = std::sync::mpsc::sync_channel(config.event_channel_size);
-        let exporter = config.exporter.try_into()?;
+
+        // launch aggregator on background thread
+        let handle = MetricsAggregator::start_on_thread(rx, config.clone());
 
         let mut agent = MetricsAgent::new(tx, config.default_tags);
         for metric in config.pre_allocated_metrics {
             agent.register_metric_with_id(metric);
         }
-        let _ = MetricsAggregator::start_on_thread(rx, exporter, config.flush_interval);
+
         set_metrics(agent);
-        Ok(())
+        Ok(handle.thread().id())
     }
 
     #[cfg(feature = "rtrb")]
@@ -130,11 +134,11 @@ impl MetricsAgent {
         match metric {
             PreAllocatedMetric::Counter { name, id, mut tags } => {
                 self.enrich_with_counter_tags(&mut tags);
-                self.send_event(Event::CounterCreate(id, name.to_string(), tags))
+                self.send_event(Event::CounterCreate(id, name, tags))
             }
             PreAllocatedMetric::Histogram { name, id, mut tags } => {
                 self.enrich_with_histogram_tags(&mut tags);
-                self.send_event(Event::HistogramCreate(id, name.to_string(), tags))
+                self.send_event(Event::HistogramCreate(id, name, tags))
             }
         }
     }
