@@ -3,7 +3,7 @@ use crate::OwnedTags;
 use duration_str::deserialize_duration;
 use metricus::PreAllocatedMetric;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, EnumMap};
+use serde_with::serde_as;
 use std::collections::HashMap;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
@@ -28,7 +28,6 @@ pub struct MetricsConfig {
     pub event_channel_size: usize,
     pub exporter: ExporterSource,
     #[serde(default)]
-    #[serde_as(as = "EnumMap")]
     pub pre_allocated_metrics: Vec<PreAllocatedMetric>,
 }
 

@@ -13,7 +13,6 @@ use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]
 use std::sync::mpsc::SyncSender;
 
-use log::info;
 use std::collections::HashMap;
 
 type OwnedTag = (String, String);
@@ -55,9 +54,6 @@ impl MetricsAgent {
     }
 
     pub fn init_with_config(config: MetricsConfig) {
-        info!("Initializing metrics agent with config:\n{}", serde_yaml::to_string(&config).unwrap());
-        // info!("Initializing metrics agent with config:\n{}", serde_json::to_string_pretty(&config).unwrap());
-
         #[cfg(feature = "rtrb")]
         let (tx, rx) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(not(feature = "rtrb"))]
@@ -114,10 +110,18 @@ impl MetricsAgent {
 
     fn register_metric_with_id(&mut self, metric: PreAllocatedMetric) {
         match metric {
-            PreAllocatedMetric::Counter { name, id, tags } => {
+            PreAllocatedMetric::Counter { name, id, mut tags } => {
+                tags.push(("type", "counter").to_owned_tag());
+                tags.extend(self.default_tags.clone());
+                tags.sort_unstable();
+                tags.dedup();
                 self.send_event(Event::CounterCreate(id, name.to_string(), tags))
             }
-            PreAllocatedMetric::Histogram { name, id, tags } => {
+            PreAllocatedMetric::Histogram { name, id, mut tags } => {
+                tags.push(("type", "histogram").to_owned_tag());
+                tags.extend(self.default_tags.clone());
+                tags.sort_unstable();
+                tags.dedup();
                 self.send_event(Event::HistogramCreate(id, name.to_string(), tags))
             }
         }

@@ -18,6 +18,7 @@ rdtsc = ["dep:quanta"]
 [dependencies]
 quanta = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true }
 
 [dev-dependencies]
 metricus_macros = { workspace = true }

@@ -8,6 +8,8 @@ use crate::access::get_metrics;
 pub use counter::{Counter, CounterOps};
 pub use histogram::{Histogram, HistogramOps};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// Metric id.
@@ -100,18 +102,23 @@ fn record_raw<T: MetricsBackend>(ptr: *mut u8, id: Id, value: u64) {
 }
 
 /// Pre-allocated metric consists of name, id and tags.
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
-// #[serde(tag = "type")]
+#[serde(tag = "type")]
 pub enum PreAllocatedMetric {
     Counter {
         name: String,
         id: Id,
+        #[serde_as(as = "HashMap<_, _>")]
+        #[serde(default)]
         tags: Vec<(String, String)>,
     },
     Histogram {
         name: String,
         id: Id,
+        #[serde_as(as = "HashMap<_, _>")]
+        #[serde(default)]
         tags: Vec<(String, String)>,
     },
 }
