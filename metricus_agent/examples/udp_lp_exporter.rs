@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
         type: udp
         config:
             host: 127.0.0.1
-            port: 8777
+            port: 8092
             encoder: line_protocol
     "#;
 
@@ -33,10 +33,7 @@ fn main() -> anyhow::Result<()> {
     MetricsAgent::init_with_config(
         MetricsConfig::from_str(CONFIG)?
             .with_pre_allocated_metrics(CountingAllocator::metrics)
-            .with_default_tags(vec![
-                ("env".to_owned(), "prod".to_owned()),
-                ("host".to_owned(), "127.0.0.1".to_owned()),
-            ]),
+            .with_default_tags(vec![("example_name".to_owned(), "udp_lp_exporter".to_owned())]),
     )?;
 
     loop {

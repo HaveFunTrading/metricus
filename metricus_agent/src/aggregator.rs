@@ -275,7 +275,7 @@ impl LineProtocol {
         dst.write_all(itoa::Buffer::new().format(histogram.inner.max()).as_bytes())?;
         dst.write_all(b"u,mean=")?;
         dst.write_all(dtoa::Buffer::new().format(histogram.inner.mean()).as_bytes())?;
-        dst.write_all(b"f,p50=")?;
+        dst.write_all(b",p50=")?;
         dst.write_all(
             itoa::Buffer::new()
                 .format(histogram.inner.value_at_quantile(0.50))
