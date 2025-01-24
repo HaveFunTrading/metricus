@@ -35,7 +35,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
         // provide metrics only if instrumentation has been enabled for this thread
         if INSTRUMENTATION_ENABLED.get() {
             COUNTERS.alloc_count.increment();
-            COUNTERS.alloc_bytes.increment_by(get_aligned_size(layout));
+            COUNTERS.alloc_bytes.increment_by(get_aligned_size(layout) as u64);
         }
 
         // delegate to the appropriate allocator
@@ -54,7 +54,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
         // provide metrics only if instrumentation has been enabled for this thread
         if INSTRUMENTATION_ENABLED.get() {
             COUNTERS.dealloc_count.increment();
-            COUNTERS.dealloc_bytes.increment_by(get_aligned_size(layout));
+            COUNTERS.dealloc_bytes.increment_by(get_aligned_size(layout) as u64);
         }
 
         // delegate to the appropriate allocator

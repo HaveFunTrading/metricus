@@ -112,7 +112,7 @@ pub trait CounterOps {
     /// let counter = Counter::new("example_counter", &[]);
     /// counter.increment_by(5);
     /// ```
-    fn increment_by(&self, delta: usize);
+    fn increment_by(&self, delta: u64);
 }
 
 impl CounterOps for Counter {
@@ -120,7 +120,7 @@ impl CounterOps for Counter {
         get_metrics_mut().increment_counter(self.id);
     }
 
-    fn increment_by(&self, delta: usize) {
+    fn increment_by(&self, delta: u64) {
         get_metrics_mut().increment_counter_by(self.id, delta);
     }
 }
@@ -130,7 +130,7 @@ impl CounterOps for LazyCell<UnsafeCell<Counter>> {
         unsafe { &mut *self.get() }.increment()
     }
 
-    fn increment_by(&self, delta: usize) {
+    fn increment_by(&self, delta: u64) {
         unsafe { &mut *self.get() }.increment_by(delta)
     }
 }
@@ -140,7 +140,7 @@ impl CounterOps for LazyLock<UnsafeCell<Counter>> {
         unsafe { &mut *self.get() }.increment()
     }
 
-    fn increment_by(&self, delta: usize) {
+    fn increment_by(&self, delta: u64) {
         unsafe { &mut *self.get() }.increment_by(delta)
     }
 }

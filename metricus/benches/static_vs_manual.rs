@@ -29,7 +29,7 @@ impl Metrics for CustomBackend {
         // no-op
     }
 
-    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+    fn increment_counter_by(&mut self, _id: Id, _delta: u64) {
         // no-op
     }
 

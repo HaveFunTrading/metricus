@@ -1,6 +1,6 @@
 use crate::config::MetricsConfig;
 use crate::exporter::Exporter;
-use crate::{error, Error, Event, OwnedTags};
+use crate::{error, ControlEvent, Error, OwnedTags, UpdateEvent};
 use metricus::Id;
 #[cfg(feature = "rtrb")]
 use rtrb::Consumer;
@@ -17,9 +17,13 @@ type Histograms = HashMap<Id, Histogram>;
 
 pub struct MetricsAggregator {
     #[cfg(feature = "rtrb")]
-    rx: Consumer<Event>,
+    rx_upd: Consumer<UpdateEvent>,
+    #[cfg(feature = "rtrb")]
+    rx_cnc: Consumer<ControlEvent>,
     #[cfg(not(feature = "rtrb"))]
-    rx: Receiver<Event>,
+    rx_upd: Receiver<UpdateEvent>,
+    #[cfg(not(feature = "rtrb"))]
+    rx_cnc: Receiver<ControlEvent>,
     exporter: Exporter,
     counters: Counters,
     histograms: Histograms,
@@ -29,13 +33,16 @@ pub struct MetricsAggregator {
 
 impl MetricsAggregator {
     pub fn new(
-        #[cfg(feature = "rtrb")] rx: Consumer<Event>,
-        #[cfg(not(feature = "rtrb"))] rx: Receiver<Event>,
+        #[cfg(feature = "rtrb")] rx_upd: Consumer<UpdateEvent>,
+        #[cfg(feature = "rtrb")] rx_cnc: Consumer<ControlEvent>,
+        #[cfg(not(feature = "rtrb"))] rx_upd: Receiver<UpdateEvent>,
+        #[cfg(not(feature = "rtrb"))] rx_cnc: Receiver<ControlEvent>,
         exporter: Exporter,
         flush_interval: Duration,
     ) -> Self {
         Self {
-            rx,
+            rx_upd,
+            rx_cnc,
             exporter,
             counters: Default::default(),
             histograms: Default::default(),
@@ -45,13 +52,15 @@ impl MetricsAggregator {
     }
 
     pub fn start_on_thread(
-        #[cfg(feature = "rtrb")] rx: Consumer<Event>,
-        #[cfg(not(feature = "rtrb"))] rx: Receiver<Event>,
+        #[cfg(feature = "rtrb")] rx_upd: Consumer<UpdateEvent>,
+        #[cfg(feature = "rtrb")] rx_cnc: Consumer<ControlEvent>,
+        #[cfg(not(feature = "rtrb"))] rx_upd: Receiver<UpdateEvent>,
+        #[cfg(not(feature = "rtrb"))] rx_cnc: Receiver<ControlEvent>,
         config: MetricsConfig,
     ) -> JoinHandle<error::Result<()>> {
         std::thread::spawn(move || {
             let exporter = config.exporter.try_into()?;
-            let mut aggregator = MetricsAggregator::new(rx, exporter, config.flush_interval);
+            let mut aggregator = MetricsAggregator::new(rx_upd, rx_cnc, exporter, config.flush_interval);
             loop {
                 aggregator.poll()?;
                 std::thread::sleep(Duration::from_millis(1));
@@ -73,10 +82,14 @@ impl MetricsAggregator {
     #[cfg(feature = "rtrb")]
     #[inline]
     fn process_events(&mut self) -> crate::Result<()> {
-        let available = self.rx.slots();
-        if let Ok(chunk) = self.rx.read_chunk(available) {
+        if let Ok(chunk) = self.rx_cnc.read_chunk(self.rx_cnc.slots()) {
             for event in chunk {
-                Self::handle_event(&mut self.counters, &mut self.histograms, event)?;
+                Self::handle_control_event(&mut self.counters, &mut self.histograms, event)?;
+            }
+        }
+        if let Ok(chunk) = self.rx_upd.read_chunk(self.rx_upd.slots()) {
+            for event in chunk {
+                Self::handle_update_event(&mut self.counters, &mut self.histograms, event)?;
             }
         }
         Ok(())
@@ -85,33 +98,51 @@ impl MetricsAggregator {
     #[cfg(not(feature = "rtrb"))]
     #[inline]
     fn process_events(&mut self) -> crate::Result<()> {
-        for event in self.rx.try_iter() {
-            Self::handle_event(&mut self.counters, &mut self.histograms, event)?;
+        for event in self.rx_cnc.try_iter() {
+            Self::handle_control_event(&mut self.counters, &mut self.histograms, event)?;
+        }
+        for event in self.rx_upd.try_iter() {
+            Self::handle_update_event(&mut self.counters, &mut self.histograms, event)?;
         }
         Ok(())
     }
 
     #[inline]
-    fn handle_event(counters: &mut Counters, histograms: &mut Histograms, event: Event) -> crate::Result<()> {
+    fn handle_control_event(
+        counters: &mut Counters,
+        histograms: &mut Histograms,
+        event: ControlEvent,
+    ) -> crate::Result<()> {
         match event {
-            Event::CounterCreate(id, name, tags) => {
+            ControlEvent::CounterCreate(id, name, tags) => {
                 counters.entry(id).or_insert_with(|| Counter::new(name, tags));
             }
-            Event::CounterIncrement(id, delta) => {
+            ControlEvent::CounterDelete(id) => {
+                counters.remove(&id);
+            }
+            ControlEvent::HistogramCreate(id, name, tags) => {
+                histograms.entry(id).or_insert_with(|| Histogram::new(name, tags));
+            }
+            ControlEvent::HistogramDelete(id) => {
+                histograms.remove(&id);
+            }
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn handle_update_event(
+        counters: &mut Counters,
+        histograms: &mut Histograms,
+        event: UpdateEvent,
+    ) -> crate::Result<()> {
+        match event {
+            UpdateEvent::CounterIncrement(id, delta) => {
                 if let Some(counter) = counters.get_mut(&id) {
                     counter.increment(delta);
                 }
             }
-            Event::CounterDelete(id) => {
-                counters.remove(&id);
-            }
-            Event::HistogramCreate(id, name, tags) => {
-                histograms.entry(id).or_insert_with(|| Histogram::new(name, tags));
-            }
-            Event::HistogramDelete(id) => {
-                histograms.remove(&id);
-            }
-            Event::HistogramRecord(id, value) => {
+            UpdateEvent::HistogramRecord(id, value) => {
                 if let Some(histogram) = histograms.get_mut(&id) {
                     histogram.inner.record(value).map_err(Error::other)?;
                 }
@@ -134,7 +165,7 @@ impl MetricsAggregator {
 
 #[derive(Serialize)]
 pub struct Counter {
-    value: usize,
+    value: u64,
     #[serde(flatten)]
     meta_data: MetaData,
 }
@@ -147,7 +178,7 @@ impl Counter {
         }
     }
 
-    fn increment(&mut self, delta: usize) {
+    fn increment(&mut self, delta: u64) {
         self.value += delta;
     }
 }

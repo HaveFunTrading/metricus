@@ -32,7 +32,7 @@ pub trait Metrics {
 
     fn delete_counter(&mut self, id: Id);
 
-    fn increment_counter_by(&mut self, id: Id, delta: usize);
+    fn increment_counter_by(&mut self, id: Id, delta: u64);
 
     fn increment_counter(&mut self, id: Id) {
         self.increment_counter_by(id, 1)
@@ -80,7 +80,7 @@ fn delete_counter_raw<T: Metrics>(ptr: *mut u8, id: Id) {
 }
 
 #[inline]
-fn increment_counter_by_raw<T: Metrics>(ptr: *mut u8, id: Id, delta: usize) {
+fn increment_counter_by_raw<T: Metrics>(ptr: *mut u8, id: Id, delta: u64) {
     let metrics = unsafe { &mut *(ptr as *mut T) };
     metrics.increment_counter_by(id, delta)
 }
@@ -164,7 +164,7 @@ impl Metrics for NoOpMetrics {
         // no-op
     }
 
-    fn increment_counter_by(&mut self, _id: Id, _delta: usize) {
+    fn increment_counter_by(&mut self, _id: Id, _delta: u64) {
         // no-op
     }
 
@@ -226,7 +226,7 @@ struct MetricsVTable {
     new_counter: fn(*mut u8, &str, Tags) -> Id,
     delete_counter: fn(*mut u8, Id),
     increment_counter: fn(*mut u8, Id),
-    increment_counter_by: fn(*mut u8, Id, usize),
+    increment_counter_by: fn(*mut u8, Id, u64),
     new_histogram: fn(*mut u8, &str, Tags) -> Id,
     delete_histogram: fn(*mut u8, Id),
     record: fn(*mut u8, Id, u64),
@@ -251,7 +251,7 @@ impl MetricsHandle {
     }
 
     #[inline]
-    fn increment_counter_by(&mut self, id: Id, delta: usize) {
+    fn increment_counter_by(&mut self, id: Id, delta: u64) {
         (self.vtable.increment_counter_by)(self.ptr, id, delta)
     }
 
