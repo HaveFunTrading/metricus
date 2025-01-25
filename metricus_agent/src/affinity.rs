@@ -4,7 +4,7 @@ use core_affinity::CoreId;
 use log::{info, warn};
 
 pub enum Affinity {
-    NoAffinity,
+    NoOp,
     CpuId(CoreId),
     CpuIndex(usize),
 }
@@ -17,7 +17,7 @@ impl TryFrom<MetricsConfig> for Affinity {
             (Some(_), Some(_)) => Err(Error::other("cannot specify both cpu and cpu_index")),
             (Some(cpu_id), None) => Ok(Affinity::CpuId(CoreId { id: cpu_id })),
             (None, Some(cpu_index)) => Ok(Affinity::CpuIndex(cpu_index)),
-            (None, None) => Ok(Affinity::NoAffinity),
+            (None, None) => Ok(Affinity::NoOp),
         }
     }
 }
@@ -42,7 +42,7 @@ impl Affinity {
                         warn!("core index {cpu_index} is not present in the available cpu set")
                     }
                 }
-                Affinity::NoAffinity => {}
+                Affinity::NoOp => {}
             }
         } else {
             warn!("unable to find any cores on which the current thread is allowed to run")
