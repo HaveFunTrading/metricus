@@ -1,12 +1,12 @@
+use crate::affinity::Affinity;
 use crate::config::MetricsConfig;
 use crate::exporter::Exporter;
-use crate::{error, ControlEvent, Error, OwnedTags, UpdateEvent};
+use crate::{ControlEvent, Error, OwnedTags, UpdateEvent};
 use log::error;
 use metricus::Id;
 #[cfg(feature = "rtrb")]
 use rtrb::Consumer;
 use serde::{Deserialize, Serialize};
-use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::io::Write;
 #[cfg(not(feature = "rtrb"))]
@@ -59,20 +59,28 @@ impl MetricsAggregator {
         #[cfg(not(feature = "rtrb"))] rx_upd: Receiver<UpdateEvent>,
         #[cfg(not(feature = "rtrb"))] rx_cnc: Receiver<ControlEvent>,
         config: MetricsConfig,
-    ) -> JoinHandle<error::Result<()>> {
-        std::thread::spawn(move || {
-            let exporter = config
-                .exporter
-                .try_into()
-                .inspect_err(|e| error!("Unable to create exporter: {e}\n{}", Backtrace::force_capture()))?;
-            let mut aggregator = MetricsAggregator::new(rx_upd, rx_cnc, exporter, config.flush_interval);
-            loop {
-                aggregator
-                    .poll()
-                    .inspect_err(|e| error!("Error when polling aggregator: {e}\n{}", Backtrace::force_capture()))?;
-                std::thread::sleep(Duration::from_millis(1));
-            }
-        })
+    ) -> JoinHandle<()> {
+        std::thread::Builder::new()
+            .name("aggregator".to_string())
+            .spawn(move || {
+                let affinity = Affinity::try_from(config.clone()).unwrap();
+                affinity.pin_current_thread_to_core();
+
+                let exporter = config
+                    .exporter
+                    .try_into()
+                    .inspect_err(|e| error!("unable to create exporter: {e}"))
+                    .unwrap();
+                let mut aggregator = MetricsAggregator::new(rx_upd, rx_cnc, exporter, config.flush_interval);
+                loop {
+                    aggregator
+                        .poll()
+                        .inspect_err(|e| error!("error when polling aggregator: {e}"))
+                        .unwrap();
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            })
+            .unwrap()
     }
 
     #[inline]

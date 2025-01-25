@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod affinity;
 mod aggregator;
 pub mod config;
 mod error;
@@ -16,7 +17,6 @@ use std::sync::mpsc::SyncSender;
 // re-exports
 pub use error::{Error, Result};
 use std::collections::HashMap;
-use std::thread::ThreadId;
 
 type OwnedTag = (String, String);
 type OwnedTags = Vec<OwnedTag>;
@@ -56,13 +56,13 @@ pub struct MetricsAgent {
 }
 
 impl MetricsAgent {
-    /// Init agent with default config and return metrics aggregator background `ThreadId`.
-    pub fn init() -> Result<ThreadId> {
+    /// Init agent with default config.
+    pub fn init() -> Result<()> {
         Self::init_with_config(MetricsConfig::default())
     }
 
-    /// Init agent with user supplied config and return metrics aggregator background `ThreadId`.
-    pub fn init_with_config(config: MetricsConfig) -> Result<ThreadId> {
+    /// Init agent with user supplied config.
+    pub fn init_with_config(config: MetricsConfig) -> Result<()> {
         #[cfg(feature = "rtrb")]
         let (tx_upd, rx_upd) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(feature = "rtrb")]
@@ -73,7 +73,7 @@ impl MetricsAgent {
         let (tx_cnc, rx_cnc) = std::sync::mpsc::sync_channel(1024);
 
         // launch aggregator on background thread
-        let handle = MetricsAggregator::start_on_thread(rx_upd, rx_cnc, config.clone());
+        let _ = MetricsAggregator::start_on_thread(rx_upd, rx_cnc, config.clone());
 
         let mut agent = MetricsAgent::new(tx_upd, tx_cnc, config.default_tags);
         for metric in config.pre_allocated_metrics {
@@ -81,7 +81,7 @@ impl MetricsAgent {
         }
 
         set_metrics(agent);
-        Ok(handle.thread().id())
+        Ok(())
     }
 
     #[cfg(feature = "rtrb")]

@@ -43,6 +43,7 @@ thiserror = "2.0.7"
 rtrb = "0.3.2"
 log = "0.4.25"
 dtoa = "1.0.9"
+core_affinity = "0.8.1"
 
 [profile.bench]
 lto = true

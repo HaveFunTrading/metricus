@@ -1,7 +1,6 @@
 flush_interval: 5s
 default_tags:
   env: prod
-  host: 127.0.0.1
 exporter:
   type: udp
   config:

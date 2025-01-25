@@ -15,7 +15,7 @@ use std::vec;
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetricsConfig {
-    /// Interval at which metrics are written to the targets.
+    /// Interval at which metrics are written to the targets. This defaults to 10 seconds.
     #[serde(deserialize_with = "deserialize_duration")]
     #[serde(default = "get_default_flush_interval")]
     pub flush_interval: Duration,
@@ -26,9 +26,17 @@ pub struct MetricsConfig {
     /// Event channel size between the metrics agent and aggregator. This defaults to 1 million.
     #[serde(default = "get_default_event_channel_size")]
     pub event_channel_size: usize,
+    /// Metrics exporter type.
+    #[serde(default)]
     pub exporter: ExporterSource,
     #[serde(default)]
     pub pre_allocated_metrics: Vec<PreAllocatedMetric>,
+    /// CPU id for the metrics aggregator thread. Cannot be used with [MetricsConfig:aggregator_affinity_cpu_index] `aggregator_affinity_cpu_index`.
+    #[serde(default)]
+    pub aggregator_affinity_cpu_id: Option<usize>,
+    /// CPU index of the available cpu set for the metrics aggregator thread. Cannot be used with `aggregator_affinity_cpu_id`.
+    #[serde(default)]
+    pub aggregator_affinity_cpu_index: Option<usize>,
 }
 
 impl MetricsConfig {

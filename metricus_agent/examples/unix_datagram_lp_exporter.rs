@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
     exporter:
         type: unix_datagram
         config:
-            path: /var/run/shared-socket/telegraf.sock
+            path: /tmp/metrics-agent.sock
             encoder: line_protocol
     "#;
 
@@ -39,6 +39,6 @@ fn main() -> anyhow::Result<()> {
         foo();
         bar();
         baz();
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
