@@ -1,10 +1,12 @@
 use crate::config::MetricsConfig;
 use crate::exporter::Exporter;
 use crate::{error, ControlEvent, Error, OwnedTags, UpdateEvent};
+use log::error;
 use metricus::Id;
 #[cfg(feature = "rtrb")]
 use rtrb::Consumer;
 use serde::{Deserialize, Serialize};
+use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::io::Write;
 #[cfg(not(feature = "rtrb"))]
@@ -12,8 +14,8 @@ use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-type Counters = HashMap<Id, Counter>;
-type Histograms = HashMap<Id, Histogram>;
+pub type Counters = HashMap<Id, Counter>;
+pub type Histograms = HashMap<Id, Histogram>;
 
 pub struct MetricsAggregator {
     #[cfg(feature = "rtrb")]
@@ -59,10 +61,15 @@ impl MetricsAggregator {
         config: MetricsConfig,
     ) -> JoinHandle<error::Result<()>> {
         std::thread::spawn(move || {
-            let exporter = config.exporter.try_into()?;
+            let exporter = config
+                .exporter
+                .try_into()
+                .inspect_err(|e| error!("Unable to create exporter: {e}\n{}", Backtrace::force_capture()))?;
             let mut aggregator = MetricsAggregator::new(rx_upd, rx_cnc, exporter, config.flush_interval);
             loop {
-                aggregator.poll()?;
+                aggregator
+                    .poll()
+                    .inspect_err(|e| error!("Error when polling aggregator: {e}\n{}", Backtrace::force_capture()))?;
                 std::thread::sleep(Duration::from_millis(1));
             }
         })

@@ -1,7 +1,11 @@
 use metricus_agent::config::MetricsConfig;
 use metricus_agent::MetricsAgent;
+use metricus_allocator::{enable_allocator_instrumentation, CountingAllocator};
 use metricus_macros::{counter, span};
 use std::str::FromStr;
+
+#[global_allocator]
+static GLOBAL: CountingAllocator = CountingAllocator;
 
 #[counter(measurement = "counters", tags(key1 = "value1", key2 = "value2"))]
 fn foo() {}
@@ -15,15 +19,21 @@ fn baz() {}
 fn main() -> anyhow::Result<()> {
     const CONFIG: &str = r#"
     exporter:
-        type: unix_socket
+        type: unix_datagram
         config:
-            path: /tmp/metrics-agent.sock
-            encoder: linep_rotocol
+            path: /var/run/shared-socket/telegraf.sock
+            encoder: line_protocol
     "#;
+
+    enable_allocator_instrumentation();
 
     env_logger::init();
 
-    MetricsAgent::init_with_config(MetricsConfig::from_str(CONFIG)?)?;
+    MetricsAgent::init_with_config(
+        MetricsConfig::from_str(CONFIG)?
+            .with_pre_allocated_metrics(CountingAllocator::metrics)
+            .with_default_tags(vec![("example_name".to_owned(), "unix_datagram_lp_exporter".to_owned())]),
+    )?;
 
     loop {
         foo();

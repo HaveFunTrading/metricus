@@ -85,7 +85,8 @@ pub enum ExporterSource {
     NoOp,
     Udp(UdpConfig),
     File(FileConfig),
-    UnixSocket(UnixSocketConfig),
+    UnixStream(UnixSocketConfig),
+    UnixDatagram(UnixSocketConfig),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

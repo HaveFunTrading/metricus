@@ -19,10 +19,9 @@ fn baz() {}
 fn main() -> anyhow::Result<()> {
     const CONFIG: &str = r#"
     exporter:
-        type: udp
+        type: unix_datagram
         config:
-            host: 127.0.0.1
-            port: 8092
+            path: /var/run/shared-socket/telegraf.sock
             encoder: line_protocol
     "#;
 
