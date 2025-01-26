@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.8"
+version = "0.0.9"
 edition = "2021"
 license = "MIT"
 description = "Low latency metrics framework."
@@ -20,9 +20,9 @@ rust-version = "1.83.0"
 
 [workspace.dependencies]
 # workspace
-metricus = { path = "./metricus", version = "0.0.8" }
-metricus_allocator = { path = "./metricus_allocator", version = "0.0.8" }
-metricus_macros = { path = "./metricus_macros", version = "0.0.8" }
+metricus = { path = "./metricus" }
+metricus_allocator = { path = "./metricus_allocator" }
+metricus_macros = { path = "./metricus_macros" }
 # external
 anyhow = "1.0.95"
 criterion = "0.5.1"
