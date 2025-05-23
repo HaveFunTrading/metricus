@@ -11,7 +11,7 @@ resolver = "2"
 workspace = true
 
 [workspace.package]
-version = "0.0.10"
+version = "0.0.11"
 edition = "2021"
 license = "MIT"
 description = "Low latency metrics framework."
@@ -22,11 +22,6 @@ categories = ["development-tools::debugging"]
 rust-version = "1.83.0"
 
 [workspace.dependencies]
-# workspace
-#metricus = { path = "./metricus" }
-#metricus_allocator = { path = "./metricus_allocator" }
-#metricus_macros = { path = "./metricus_macros" }
-# external
 anyhow = "1.0.95"
 criterion = "0.5.1"
 proc-macro2 = "1.0"

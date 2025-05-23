@@ -6,7 +6,7 @@ mod histogram;
 use crate::access::get_metrics;
 // re-exports
 pub use counter::{Counter, CounterOps};
-pub use histogram::{Histogram, HistogramOps};
+pub use histogram::{Histogram, HistogramOps, Span};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::HashMap;
