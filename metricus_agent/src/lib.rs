@@ -8,7 +8,7 @@ mod exporter;
 
 use crate::aggregator::MetricsAggregator;
 use crate::config::MetricsConfig;
-use metricus::{set_metrics, Id, Metrics, PreAllocatedMetric, Tag, Tags};
+use metricus::{Id, Metrics, PreAllocatedMetric, Tag, Tags, set_metrics};
 #[cfg(feature = "rtrb")]
 use rtrb::Producer;
 #[cfg(not(feature = "rtrb"))]

@@ -41,13 +41,17 @@ unsafe impl GlobalAlloc for CountingAllocator {
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
         {
-            return jemallocator::Jemalloc.alloc(layout);
+            return unsafe {
+                jemallocator::Jemalloc.alloc(layout);
+            };
         }
         #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
         {
-            return mimalloc::MiMalloc.alloc(layout);
+            return unsafe {
+                mimalloc::MiMalloc.alloc(layout);
+            };
         }
-        std::alloc::System.alloc(layout)
+        unsafe { std::alloc::System.alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -60,15 +64,19 @@ unsafe impl GlobalAlloc for CountingAllocator {
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
         {
-            jemallocator::Jemalloc.dealloc(ptr, layout);
+            unsafe {
+                jemallocator::Jemalloc.dealloc(ptr, layout);
+            }
             return;
         }
         #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
         {
-            jemallocator::Jemalloc.dealloc(ptr, layout);
+            unsafe {
+                jemallocator::Jemalloc.dealloc(ptr, layout);
+            }
             return;
         }
-        std::alloc::System.dealloc(ptr, layout)
+        unsafe { std::alloc::System.dealloc(ptr, layout) }
     }
 }
 

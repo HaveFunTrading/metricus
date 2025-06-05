@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use metricus::{set_metrics, Counter, HistogramOps, Id, Metrics, Tags};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use metricus::{Counter, HistogramOps, Id, Metrics, Tags, set_metrics};
 use metricus::{CounterOps, Histogram};
 use metricus_macros::{counter, span};
 

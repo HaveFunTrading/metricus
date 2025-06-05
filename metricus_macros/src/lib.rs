@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use proc_macro2::{Ident, Span};
 
 use quote::quote;
-use syn::{parse_macro_input, AttributeArgs, ItemFn, Lit, Meta, MetaList, MetaNameValue, NestedMeta};
+use syn::{AttributeArgs, ItemFn, Lit, Meta, MetaList, MetaNameValue, NestedMeta, parse_macro_input};
 
 /// The `counter` attribute macro instruments a function with a metrics counter,
 /// allowing you to measure how many times a function is called. It requires to specify
@@ -107,7 +107,7 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         None => {
             return TokenStream::from(
                 syn::Error::new_spanned(&input_fn, "Missing required 'measurement' field").to_compile_error(),
-            )
+            );
         }
     };
 
@@ -125,7 +125,7 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_where_clause = &input_fn.sig.generics.where_clause;
     let attrs = &input_fn.attrs;
 
-    let gen = quote! {
+    let generated = quote! {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
@@ -137,7 +137,7 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    gen.into()
+    generated.into()
 }
 
 /// The `counter_with_id` attribute macro instruments a function with a metrics counter with a user
@@ -216,7 +216,7 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
             None => {
                 return TokenStream::from(
                     syn::Error::new_spanned(&input_fn, "Missing required 'id' field").to_compile_error(),
-                )
+                );
             }
         },
     };
@@ -231,7 +231,7 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_where_clause = &input_fn.sig.generics.where_clause;
     let attrs = &input_fn.attrs;
 
-    let gen = quote! {
+    let generated = quote! {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
@@ -243,7 +243,7 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    gen.into()
+    generated.into()
 }
 
 /// The `span` attribute macro instruments a function with a metrics span that will be recorded
@@ -341,7 +341,7 @@ pub fn span(attr: TokenStream, item: TokenStream) -> TokenStream {
         None => {
             return TokenStream::from(
                 syn::Error::new_spanned(&input_fn, "Missing required 'measurement' field").to_compile_error(),
-            )
+            );
         }
     };
 
@@ -358,7 +358,7 @@ pub fn span(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_where_clause = &input_fn.sig.generics.where_clause;
     let attrs = &input_fn.attrs;
 
-    let gen = quote! {
+    let generated = quote! {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
@@ -370,5 +370,5 @@ pub fn span(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    gen.into()
+    generated.into()
 }

@@ -1,3 +1,14 @@
+[workspace.package]
+version = "0.0.12"
+edition = "2024"
+license = "MIT"
+description = "Low latency metrics framework."
+documentation = "https://docs.rs/metricus"
+repository = "https://github.com/HaveFunTrading/metricus"
+keywords = ["metrics", "low-latency"]
+categories = ["development-tools::debugging"]
+rust-version = "1.85.1"
+
 [workspace]
 members = [
     "metricus",
@@ -5,21 +16,8 @@ members = [
     "metricus_allocator",
     "metricus_macros"
 ]
-resolver = "2"
+resolver = "3"
 
-[release]
-workspace = true
-
-[workspace.package]
-version = "0.0.11"
-edition = "2021"
-license = "MIT"
-description = "Low latency metrics framework."
-documentation = "https://docs.rs/metricus"
-repository = "https://github.com/HaveFunTrading/metricus"
-keywords = ["metrics", "low-latency"]
-categories = ["development-tools::debugging"]
-rust-version = "1.83.0"
 
 [workspace.dependencies]
 anyhow = "1.0.95"

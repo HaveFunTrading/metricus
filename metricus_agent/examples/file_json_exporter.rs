@@ -1,5 +1,5 @@
-use metricus_agent::config::MetricsConfig;
 use metricus_agent::MetricsAgent;
+use metricus_agent::config::MetricsConfig;
 use metricus_macros::counter;
 use std::str::FromStr;
 

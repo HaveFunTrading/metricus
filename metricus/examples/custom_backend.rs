@@ -1,4 +1,4 @@
-use metricus::{get_metrics_backend_name, set_metrics, Id, Metrics, Tags};
+use metricus::{Id, Metrics, Tags, get_metrics_backend_name, set_metrics};
 use metricus_macros::{counter, span};
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use metricus::{Counter, HistogramOps};
 use metricus::{CounterOps, Histogram};
 use metricus_agent::MetricsAgent;

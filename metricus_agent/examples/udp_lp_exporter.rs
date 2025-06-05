@@ -1,6 +1,6 @@
-use metricus_agent::config::MetricsConfig;
 use metricus_agent::MetricsAgent;
-use metricus_allocator::{enable_allocator_instrumentation, CountingAllocator};
+use metricus_agent::config::MetricsConfig;
+use metricus_allocator::{CountingAllocator, enable_allocator_instrumentation};
 use metricus_macros::{counter, span};
 use std::str::FromStr;
 

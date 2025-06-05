@@ -304,7 +304,7 @@ impl<T> AtomicRef<T> {
 }
 
 mod access {
-    use crate::{MetricsHandle, METRICS};
+    use crate::{METRICS, MetricsHandle};
     use std::sync::atomic::Ordering;
 
     #[allow(static_mut_refs)]

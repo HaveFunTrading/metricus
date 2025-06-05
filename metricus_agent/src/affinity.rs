@@ -1,5 +1,5 @@
-use crate::config::MetricsConfig;
 use crate::Error;
+use crate::config::MetricsConfig;
 use core_affinity::CoreId;
 use log::{info, warn};
 

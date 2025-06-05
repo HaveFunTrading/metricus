@@ -1,5 +1,5 @@
-use crate::aggregator::Encoder;
 use crate::OwnedTags;
+use crate::aggregator::Encoder;
 use duration_str::deserialize_duration;
 use metricus::PreAllocatedMetric;
 use serde::{Deserialize, Serialize};

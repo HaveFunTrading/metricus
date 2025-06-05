@@ -3,7 +3,7 @@ use crate::config::{ExporterSource, FileConfig, UdpConfig, UnixSocketConfig};
 use log::warn;
 use metricus::Id;
 use std::collections::HashMap;
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, ErrorKind, Write};
 use std::net::UdpSocket;
 use std::os::unix::net::{UnixDatagram, UnixStream};

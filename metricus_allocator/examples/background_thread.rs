@@ -1,4 +1,4 @@
-use metricus_allocator::{enable_allocator_instrumentation, CountingAllocator};
+use metricus_allocator::{CountingAllocator, enable_allocator_instrumentation};
 
 #[global_allocator]
 static GLOBAL: CountingAllocator = CountingAllocator;
