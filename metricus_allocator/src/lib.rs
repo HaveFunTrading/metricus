@@ -72,7 +72,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
         #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
         {
             unsafe {
-                jemallocator::Jemalloc.dealloc(ptr, layout);
+                mimalloc::MiMalloc.dealloc(ptr, layout);
             }
             return;
         }

@@ -108,7 +108,7 @@ pub trait HistogramOps {
     /// It is important to use a named binding when assigning the `Span` instead of `let _ = histogram.span()`.
     /// The latter form will result in `Span` being dropped immediately. Instead, prefer to use the [Histogram::with_span]
     /// method to prevent any miss-use.
-    fn span(&self) -> Span;
+    fn span(&self) -> Span<'_>;
 
     /// Accepts a closure whose duration will be measured. The duration recorded is in nanoseconds.
     ///
@@ -128,7 +128,7 @@ impl HistogramOps for Histogram {
         get_metrics_mut().record(self.id, value);
     }
 
-    fn span(&self) -> Span {
+    fn span(&self) -> Span<'_> {
         Span {
             histogram: self,
             #[cfg(feature = "rdtsc")]
@@ -149,7 +149,7 @@ impl HistogramOps for LazyCell<UnsafeCell<Histogram>> {
         unsafe { &mut *self.get() }.record(value)
     }
 
-    fn span(&self) -> Span {
+    fn span(&self) -> Span<'_> {
         unsafe { &mut *self.get() }.span()
     }
 
