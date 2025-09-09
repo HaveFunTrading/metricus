@@ -41,15 +41,11 @@ unsafe impl GlobalAlloc for CountingAllocator {
         // delegate to the appropriate allocator
         #[cfg(all(feature = "jemalloc", not(feature = "mimalloc")))]
         {
-            return unsafe {
-                jemallocator::Jemalloc.alloc(layout);
-            };
+            return unsafe { jemallocator::Jemalloc.alloc(layout) };
         }
         #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
         {
-            return unsafe {
-                mimalloc::MiMalloc.alloc(layout);
-            };
+            return unsafe { mimalloc::MiMalloc.alloc(layout) };
         }
         unsafe { std::alloc::System.alloc(layout) }
     }
