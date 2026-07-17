@@ -129,9 +129,8 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<metricus::Counter> = core::cell::LazyCell::new(|| metricus::Counter::new(#measurement, &[ #(#tags),* ]));
-            #[allow(static_mut_refs)]
-            unsafe { metricus::CounterOps::increment(&COUNTER); }
+            static COUNTER: std::sync::LazyLock<metricus::Counter> = std::sync::LazyLock::new(|| metricus::Counter::new(#measurement, &[ #(#tags),* ]));
+            metricus::CounterOps::increment(&COUNTER);
 
             #( #fn_body )*
         }
@@ -235,9 +234,8 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<metricus::Counter> = core::cell::LazyCell::new(|| metricus::Counter::new_with_id(#counter_id));
-            #[allow(static_mut_refs)]
-            unsafe { metricus::CounterOps::increment(&COUNTER); }
+            static COUNTER: std::sync::LazyLock<metricus::Counter> = std::sync::LazyLock::new(|| metricus::Counter::new_with_id(#counter_id));
+            metricus::CounterOps::increment(&COUNTER);
 
             #( #fn_body )*
         }
@@ -362,9 +360,8 @@ pub fn span(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut HISTOGRAM: core::cell::LazyCell<metricus::Histogram> = core::cell::LazyCell::new(|| metricus::Histogram::new(#measurement, &[ #(#tags),* ]));
-            #[allow(static_mut_refs)]
-            let _span = unsafe { metricus::HistogramOps::span(&HISTOGRAM) };
+            static HISTOGRAM: std::sync::LazyLock<metricus::Histogram> = std::sync::LazyLock::new(|| metricus::Histogram::new(#measurement, &[ #(#tags),* ]));
+            let _span = metricus::HistogramOps::span(&HISTOGRAM);
 
             #( #fn_body )*
         }

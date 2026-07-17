@@ -37,3 +37,8 @@ harness = false
 name = "dispatch"
 path = "benches/dispatch.rs"
 harness = false
+
+[[bench]]
+name = "lazylock_vs_lazycell"
+path = "benches/lazylock_vs_lazycell.rs"
+harness = false
