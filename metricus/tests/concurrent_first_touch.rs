@@ -70,22 +70,8 @@ define_counter_fns!(
 );
 
 define_span_fns!(
-    span_fn_00,
-    span_fn_01,
-    span_fn_02,
-    span_fn_03,
-    span_fn_04,
-    span_fn_05,
-    span_fn_06,
-    span_fn_07,
-    span_fn_08,
-    span_fn_09,
-    span_fn_10,
-    span_fn_11,
-    span_fn_12,
-    span_fn_13,
-    span_fn_14,
-    span_fn_15,
+    span_fn_00, span_fn_01, span_fn_02, span_fn_03, span_fn_04, span_fn_05, span_fn_06, span_fn_07, span_fn_08,
+    span_fn_09, span_fn_10, span_fn_11, span_fn_12, span_fn_13, span_fn_14, span_fn_15,
 );
 
 /// Spawns THREADS_PER_FN threads per function across every function in
