@@ -64,13 +64,19 @@ impl MetricsAgent {
     /// Init agent with user supplied config.
     pub fn init_with_config(config: MetricsConfig) -> Result<()> {
         #[cfg(feature = "rtrb")]
-        let (tx_upd, rx_upd) = rtrb::RingBuffer::new(config.event_channel_size);
+        let (mut tx_upd, rx_upd) = rtrb::RingBuffer::new(config.event_channel_size);
         #[cfg(feature = "rtrb")]
-        let (tx_cnc, rx_cnc) = rtrb::RingBuffer::new(1024);
+        let (mut tx_cnc, rx_cnc) = rtrb::RingBuffer::new(1024);
         #[cfg(not(feature = "rtrb"))]
         let (tx_upd, rx_upd) = std::sync::mpsc::sync_channel(config.event_channel_size);
         #[cfg(not(feature = "rtrb"))]
         let (tx_cnc, rx_cnc) = std::sync::mpsc::sync_channel(1024);
+
+        #[cfg(feature = "rtrb")]
+        if config.prefault_ring {
+            prefault_ring(&mut tx_upd);
+            prefault_ring(&mut tx_cnc);
+        }
 
         // launch aggregator on background thread
         let _ = MetricsAggregator::start_on_thread(rx_upd, rx_cnc, config.clone());
@@ -228,5 +234,38 @@ impl MetricKey {
             name: name.to_owned(),
             tags,
         }
+    }
+}
+
+#[cfg(feature = "rtrb")]
+fn prefault_ring<T>(producer: &mut Producer<T>) {
+    let capacity = producer.buffer().capacity();
+    let mut chunk = producer
+        .write_chunk_uninit(capacity)
+        .expect("a newly created rtrb must have all slots available");
+    let (first, second) = chunk.as_mut_slices();
+
+    for slot in first.iter_mut().chain(second.iter_mut()) {
+        // SAFETY: `slot` points to writable `MaybeUninit<T>` storage. The
+        // chunk is deliberately not committed, so the zeroed bytes are never
+        // observed as a `T` and the ring remains empty.
+        unsafe {
+            std::ptr::write_volatile(slot, std::mem::MaybeUninit::zeroed());
+        }
+    }
+}
+
+#[cfg(all(test, feature = "rtrb"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefault_ring_leaves_the_ring_empty() {
+        let (mut producer, consumer) = rtrb::RingBuffer::<u64>::new(1024);
+
+        prefault_ring(&mut producer);
+
+        assert_eq!(producer.slots(), producer.buffer().capacity());
+        assert!(consumer.is_empty());
     }
 }

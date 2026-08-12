@@ -26,6 +26,10 @@ pub struct MetricsConfig {
     /// Event channel size between the metrics agent and aggregator. This defaults to 1 million.
     #[serde(default = "get_default_event_channel_size")]
     pub event_channel_size: usize,
+    /// Whether to pre-fault the rtrb channel storage during initialization. This defaults to false.
+    #[cfg(feature = "rtrb")]
+    #[serde(default)]
+    pub prefault_ring: bool,
     /// Metrics exporter type.
     #[serde(default)]
     pub exporter: ExporterSource,
@@ -122,4 +126,21 @@ pub struct FileConfig {
 pub struct UnixSocketConfig {
     pub path: String,
     pub encoder: Encoder,
+}
+
+#[cfg(all(test, feature = "rtrb"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefault_ring_defaults_to_false() {
+        assert!(!MetricsConfig::default().prefault_ring);
+    }
+
+    #[test]
+    fn prefault_ring_can_be_enabled_from_yaml() {
+        let config = MetricsConfig::from_str("prefault_ring: true").unwrap();
+
+        assert!(config.prefault_ring);
+    }
 }
