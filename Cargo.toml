@@ -6,7 +6,7 @@ description = "Low latency metrics framework."
 documentation = "https://docs.rs/metricus"
 repository = "https://github.com/HaveFunTrading/metricus"
 keywords = ["metrics", "histogram", "counter", "rdtsc", "line-protocol"]
-categories = ["development-tools::debugging"]
+categories = ["development-tools::debugging", "development-tools::profiling", "memory-management"]
 rust-version = "1.85.1"
 readme = "README.md"
 

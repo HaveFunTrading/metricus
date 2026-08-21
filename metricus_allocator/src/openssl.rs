@@ -1,3 +1,39 @@
+//! OpenSSL allocation instrumentation for metricus.
+//!
+//! OpenSSL does not allocate through Rust's [`GlobalAlloc`](std::alloc::GlobalAlloc). This module
+//! installs process-global callbacks with `CRYPTO_set_mem_functions` so OpenSSL allocation activity
+//! can be reported separately from [`CountingAllocator`](crate::CountingAllocator).
+//!
+//! # Lifecycle
+//!
+//! OpenSSL only accepts custom memory functions before its first allocation. There are two supported
+//! initialization sequences:
+//!
+//! - Most applications initialize their metricus backend and then call
+//!   [`enable_openssl_allocator_instrumentation`]. It installs the callbacks if necessary and enables
+//!   reporting for the calling thread.
+//! - Applications that might touch OpenSSL before metricus is ready call
+//!   [`OpenSslCountingAllocator::install`] as early as possible. Allocations continue to be forwarded
+//!   without reporting until instrumentation is enabled later.
+//!
+//! Installation is idempotent and process-global. Enablement is thread-local and must happen after
+//! the metricus backend and the metrics returned by [`OpenSslCountingAllocator::metrics`] have been
+//! initialized.
+//!
+//! # Metrics
+//!
+//! The `openssl_allocator` measurement reports `alloc`, `alloc_bytes`, `realloc`, `realloc_bytes`,
+//! and `free`, distinguished by the `fn_name` tag. Byte counters contain the requested allocation
+//! size. Only the number of frees is reported because OpenSSL's free callback does not receive a
+//! size.
+//!
+//! # Allocation behavior
+//!
+//! The callbacks forward to the corresponding libc allocation functions. They instrument OpenSSL;
+//! they do not route OpenSSL allocations through Rust's configured global allocator. Metric updates
+//! are emitted synchronously on each enabled allocation operation, so instrumentation has a small
+//! hot-path cost.
+
 use metricus::{Counter, CounterOps, Id, PreAllocatedMetric};
 use std::cell::Cell;
 use std::ffi::{c_char, c_int, c_void};
@@ -47,7 +83,11 @@ impl OpenSslCountingAllocator {
     /// Install the allocation callbacks once for this process.
     ///
     /// Repeated successful calls are harmless. Installation fails if OpenSSL has already performed
-    /// an allocation, because OpenSSL does not permit replacing its allocator after first use.
+    /// an allocation, because OpenSSL does not permit replacing its allocator after first use. The
+    /// first result, including failure, is cached for all subsequent calls.
+    ///
+    /// This method does not enable reporting and does not require the metricus backend to be ready.
+    /// Use it for early installation when OpenSSL might otherwise be initialized before metricus.
     pub fn install() -> Result<(), OpenSslAllocatorInstallError> {
         *INSTALL_RESULT.get_or_init(|| {
             // Referencing an openssl-sys symbol ensures its native link metadata is retained while
@@ -90,7 +130,7 @@ thread_local! {
 ///
 /// This installs the process-global OpenSSL allocation callbacks if necessary, then binds the
 /// counters to the active metricus backend. Initialize the metrics backend before calling this
-/// function.
+/// function and include [`OpenSslCountingAllocator::metrics`] in its preallocated metrics.
 ///
 /// OpenSSL allocations on other threads are not reported until this function is called from those
 /// threads as well. The custom allocator callbacks remain installed process-wide regardless.
