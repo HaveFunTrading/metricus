@@ -18,8 +18,11 @@ workspace = true
 metricus = { path = "../metricus", version = "0.0.18" }
 jemallocator = { workspace = true, optional = true }
 mimalloc = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }
+openssl-sys = { workspace = true, optional = true }
 
 [features]
 default = []
 jemalloc = ["dep:jemallocator"]
 mimalloc = ["dep:mimalloc"]
+openssl = ["dep:libc", "dep:openssl-sys"]

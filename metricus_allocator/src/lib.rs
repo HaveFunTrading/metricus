@@ -5,6 +5,11 @@ use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
 use std::sync::LazyLock;
 
+#[cfg(feature = "openssl")]
+mod openssl;
+#[cfg(feature = "openssl")]
+pub use openssl::{OpenSslAllocatorInstallError, OpenSslCountingAllocator, enable_openssl_allocator_instrumentation};
+
 const ALLOC_COUNTER_ID: Id = Id::MAX - 1004;
 const ALLOC_BYTES_COUNTER_ID: Id = Id::MAX - 1003;
 const DEALLOC_COUNTER_ID: Id = Id::MAX - 1002;
