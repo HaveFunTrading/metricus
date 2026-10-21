@@ -4,6 +4,7 @@ use crate::access::get_metrics;
 use crate::{Id, MetricsHandle, Tags};
 #[cfg(all(feature = "span", feature = "rdtsc"))]
 use quanta::Clock;
+use std::mem::ManuallyDrop;
 use std::ops::Deref;
 #[cfg(all(feature = "span", not(feature = "rdtsc")))]
 use std::time::Instant;
@@ -229,5 +230,13 @@ impl Drop for Span<'_> {
                 .wrapping_add(u64::from(elapsed.subsec_nanos()));
             self.histogram.record(nanos);
         }
+    }
+}
+
+impl Span<'_> {
+    /// Abort time measurement operation for this span. This will not emit any metrics.
+    pub fn abort(self) {
+        #[cfg(feature = "span")]
+        let _span = ManuallyDrop::new(self);
     }
 }

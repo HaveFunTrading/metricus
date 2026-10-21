@@ -42,6 +42,7 @@ impl Metrics for CustomBackend {
     }
 
     fn record(&mut self, _id: Id, _value: u64) {
+        println!("recording");
         // no-op
     }
 }
